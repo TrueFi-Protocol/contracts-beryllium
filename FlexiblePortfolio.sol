@@ -42,6 +42,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     event MaxValueChanged(uint256 newMaxValue);
     event DepositStrategyChanged(IDepositStrategy indexed oldStrategy, IDepositStrategy indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
+    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
 
     event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
@@ -164,22 +165,31 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
      * that may change over the contract's lifespan. As a safety measure, we recommend approving
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
-    function deposit(uint256 amount, address sender) public override(IBasePortfolio, BasePortfolio) whenNotPaused {
-        require(isDepositAllowed(msg.sender, msg.sender, amount), "FlexiblePortfolio: Deposit not allowed");
-        require(getRoleMemberCount(MANAGER_ROLE) == 1, "FlexiblePortfolio: Portfolio has multiple managers");
-        require(amount + totalAssets() <= maxValue, "FlexiblePortfolio: Portfolio is full");
+    function deposit(uint256 assets, address receiver) public override(BasePortfolio, IERC4626) whenNotPaused returns (uint256) {
+        require(isDepositAllowed(msg.sender, receiver, assets), "FlexiblePortfolio: Deposit not allowed");
+        require(assets + totalAssets() <= maxValue, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
+        require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
 
         address protocolAddress = protocolConfig.protocolAddress();
         address manager = getRoleMember(MANAGER_ROLE, 0);
-        (uint256 amountToDeposit, uint256 managersPart, uint256 protocolsPart) = _previewDeposit(amount);
+        (uint256 amountToDeposit, uint256 managersPart, uint256 protocolsPart) = _previewDeposit(assets);
 
-        super.deposit(amountToDeposit, sender);
-        asset.safeTransferFrom(sender, manager, managersPart);
-        asset.safeTransferFrom(sender, protocolAddress, protocolsPart);
+        uint256 sharesToMint = convertToShares(amountToDeposit);
+        require(sharesToMint > 0, "FlexiblePortfolio: Cannot mint 0 shares");
 
-        emit FeePaid(sender, manager, managersPart);
-        emit FeePaid(sender, protocolAddress, protocolsPart);
+        _mint(receiver, sharesToMint);
+        virtualTokenBalance += amountToDeposit;
+
+        asset.safeTransferFrom(msg.sender, address(this), amountToDeposit);
+        asset.safeTransferFrom(msg.sender, manager, managersPart);
+        asset.safeTransferFrom(msg.sender, protocolAddress, protocolsPart);
+
+        emit FeePaid(msg.sender, manager, managersPart);
+        emit FeePaid(msg.sender, protocolAddress, protocolsPart);
+        emit Deposit(msg.sender, receiver, assets, sharesToMint);
+
+        return sharesToMint;
     }
 
     function redeem(

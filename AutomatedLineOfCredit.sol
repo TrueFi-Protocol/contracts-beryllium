@@ -31,6 +31,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     event MaxSizeChanged(uint256 newMaxSize);
     event DepositStrategyChanged(IDepositStrategy indexed oldStrategy, IDepositStrategy indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
+    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
 
     function initialize(
         IProtocolConfig _protocolConfig,
@@ -151,13 +152,22 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
      * that may change over the contract's lifespan. As a safety measure, we recommend approving
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
-    function deposit(uint256 amount, address sender) public override {
-        require(isDepositAllowed(msg.sender, msg.sender, amount), "AutomatedLineOfCredit: Deposit not allowed");
-        require(sender != address(this), "AutomatedLineOfCredit: Pool cannot deposit to itself");
+    function deposit(uint256 assets, address receiver) public override(BasePortfolio, IERC4626) whenNotPaused returns (uint256) {
+        require(isDepositAllowed(msg.sender, receiver, assets), "AutomatedLineOfCredit: Deposit not allowed");
+        require(receiver != address(this), "AutomatedLineOfCredit: Pool cannot be deposit receiver");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
-        require((totalAssets() + amount) <= maxSize, "AutomatedLineOfCredit: Deposit would cause pool to exceed max size");
+        require((totalAssets() + assets) <= maxSize, "AutomatedLineOfCredit: Deposit would cause pool to exceed max size");
+
         updateAccruedInterest();
-        super.deposit(amount, sender);
+
+        uint256 sharesToMint = convertToShares(assets);
+        require(sharesToMint > 0, "AutomatedLineOfCredit: Cannot mint 0 shares");
+        _mint(receiver, sharesToMint);
+        virtualTokenBalance += assets;
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+
+        emit Deposit(msg.sender, receiver, assets, sharesToMint);
+        return sharesToMint;
     }
 
     function withdraw(uint256 shares, address sender) public override whenNotPaused {

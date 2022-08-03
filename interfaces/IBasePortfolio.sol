@@ -10,7 +10,5 @@ interface IBasePortfolio is IAccessControlEnumerableUpgradeable, IERC4626 {
 
     function endDate() external view returns (uint256);
 
-    function deposit(uint256 amount, address sender) external;
-
     function withdraw(uint256 shares, address sender) external;
 }

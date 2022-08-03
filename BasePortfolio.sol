@@ -64,12 +64,13 @@ abstract contract BasePortfolio is IBasePortfolio, ERC20Upgradeable, Upgradeable
      * that may change over the contract's lifespan. As a safety measure, we recommend approving
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
-    function deposit(uint256 amount, address sender) public virtual whenNotPaused {
+    function deposit(uint256 amount, address sender) public virtual whenNotPaused returns (uint256) {
         uint256 sharesToMint = calculateSharesToMint(amount);
         _mint(sender, sharesToMint);
         virtualTokenBalance += amount;
         asset.safeTransferFrom(sender, address(this), amount);
         emit Deposited(sharesToMint, amount, sender);
+        return sharesToMint;
     }
 
     function withdraw(uint256 shares, address sender) public virtual whenNotPaused {
