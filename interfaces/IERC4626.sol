@@ -17,6 +17,8 @@ interface IERC4626 {
 
     function maxDeposit(address receiver) external view returns (uint256);
 
+    function previewMint(uint256 shares) external view returns (uint256 assets);
+
     function maxMint(address receiver) external view returns (uint256);
 
     function previewRedeem(uint256 shares) external view returns (uint256);

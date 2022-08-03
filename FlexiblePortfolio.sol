@@ -14,6 +14,7 @@ import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
 import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
 import {IDepositStrategy} from "./interfaces/IDepositStrategy.sol";
 import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {BasePortfolio} from "./BasePortfolio.sol";
 
@@ -192,6 +193,25 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         return sharesToMint;
     }
 
+    function previewMint(uint256 shares) public view override(BasePortfolio, IERC4626) returns (uint256) {
+        return _assetsToDepositForShares(shares);
+    }
+
+    function _assetsToDepositForShares(uint256 shares) internal view returns (uint256) {
+        uint256 assets;
+        if (totalSupply() == 0) {
+            assets = Math.ceilDiv(shares * 10**assetDecimals, 10**decimals());
+        } else {
+            assets = convertToAssetsRoundUp(shares);
+        }
+        return Math.ceilDiv(assets * BASIS_PRECISION, BASIS_PRECISION - totalFee());
+    }
+
+    function totalFee() internal view virtual returns (uint256) {
+        uint256 _totalFee = protocolConfig.protocolFee() + managerFee;
+        return _totalFee < BASIS_PRECISION ? _totalFee : BASIS_PRECISION;
+    }
+
     function redeem(
         uint256 shares,
         address receiver,
@@ -266,6 +286,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
             return 0;
         }
         return (sharesAmount * totalAssets()) / _totalSupply;
+    }
+
+    function convertToAssetsRoundUp(uint256 sharesAmount) internal view returns (uint256) {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply == 0) {
+            return 0;
+        }
+        return Math.ceilDiv(sharesAmount * totalAssets(), _totalSupply);
     }
 
     function totalAssets() public view override(IERC4626, BasePortfolio) returns (uint256) {

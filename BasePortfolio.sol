@@ -128,4 +128,8 @@ abstract contract BasePortfolio is IBasePortfolio, ERC20Upgradeable, Upgradeable
     ) internal override whenNotPaused {
         super._approve(owner, spender, amount);
     }
+
+    function previewMint(uint256) public view virtual returns (uint256) {
+        return 0;
+    }
 }
