@@ -42,9 +42,9 @@ contract BasePortfolioImplementation is BasePortfolio {
     }
 
     function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
+        uint256,
+        address,
+        address
     ) external pure returns (uint256) {
         return 0;
     }
