@@ -153,7 +153,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) public override(BasePortfolio, IERC4626) whenNotPaused returns (uint256) {
-        require(isDepositAllowed(msg.sender, receiver, assets), "AutomatedLineOfCredit: Deposit not allowed");
+        require(isDepositAllowed(msg.sender, assets), "AutomatedLineOfCredit: Deposit not allowed");
         require(receiver != address(this), "AutomatedLineOfCredit: Pool cannot be deposit receiver");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
         require((totalAssets() + assets) <= maxSize, "AutomatedLineOfCredit: Deposit would cause pool to exceed max size");
@@ -260,14 +260,10 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     }
 
     function maxDeposit(address receiver) public view returns (uint256) {
-        return maxDeposit(receiver, msg.sender);
-    }
-
-    function maxDeposit(address receiver, address sender) public view returns (uint256) {
         if (paused() || getStatus() != AutomatedLineOfCreditStatus.Open) {
             return 0;
         } else {
-            return min(maxSize - totalAssets(), getMaxDepositFromStrategy(sender, receiver));
+            return min(maxSize - totalAssets(), getMaxDepositFromStrategy(receiver));
         }
     }
 
@@ -306,12 +302,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         return convertToShares(assets);
     }
 
-    function maxMint(address receiver) external view returns (uint256) {
-        return maxMint(receiver, msg.sender);
-    }
-
-    function maxMint(address receiver, address sender) public view returns (uint256) {
-        return convertToShares(maxDeposit(receiver, sender));
+    function maxMint(address receiver) public view returns (uint256) {
+        return convertToShares(maxDeposit(receiver));
     }
 
     function previewRedeem(uint256 shares) public view virtual returns (uint256) {
@@ -389,21 +381,17 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         }
     }
 
-    function isDepositAllowed(
-        address sender,
-        address receiver,
-        uint256 amount
-    ) internal view returns (bool) {
+    function isDepositAllowed(address receiver, uint256 assets) internal view returns (bool) {
         if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.isDepositAllowed(sender, receiver, amount);
+            return depositStrategy.isDepositAllowed(receiver, assets);
         } else {
             return true;
         }
     }
 
-    function getMaxDepositFromStrategy(address sender, address receiver) internal view returns (uint256) {
+    function getMaxDepositFromStrategy(address receiver) internal view returns (uint256) {
         if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.maxDeposit(sender, receiver);
+            return depositStrategy.maxDeposit(receiver);
         } else {
             return type(uint256).max;
         }

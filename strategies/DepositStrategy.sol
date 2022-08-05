@@ -9,15 +9,11 @@ contract DepositStrategy is IDepositStrategy {
         portfolio.deposit(amount, msg.sender);
     }
 
-    function isDepositAllowed(
-        address,
-        address,
-        uint256
-    ) external view returns (bool) {
+    function isDepositAllowed(address, uint256) external pure returns (bool) {
         return true;
     }
 
-    function maxDeposit(address, address) external view returns (uint256) {
+    function maxDeposit(address) external pure returns (uint256) {
         return type(uint256).max;
     }
 }

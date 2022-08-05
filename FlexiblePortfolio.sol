@@ -167,7 +167,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) public override(BasePortfolio, IERC4626) whenNotPaused returns (uint256) {
-        require(isDepositAllowed(msg.sender, receiver, assets), "FlexiblePortfolio: Deposit not allowed");
+        require(isDepositAllowed(msg.sender, assets), "FlexiblePortfolio: Deposit not allowed");
         require(assets + totalAssets() <= maxValue, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
@@ -315,12 +315,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         }
     }
 
-    function maxMint(address receiver) external view returns (uint256) {
-        return maxMint(receiver, msg.sender);
-    }
-
-    function maxMint(address receiver, address sender) public view returns (uint256) {
-        return convertToShares(maxDeposit(receiver, sender));
+    function maxMint(address receiver) public view returns (uint256) {
+        return convertToShares(maxDeposit(receiver));
     }
 
     function previewRedeem(uint256 shares) public view virtual returns (uint256) {
@@ -338,10 +334,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     }
 
     function maxDeposit(address receiver) public view returns (uint256) {
-        return maxDeposit(msg.sender, receiver);
-    }
-
-    function maxDeposit(address receiver, address sender) public view returns (uint256) {
         if (paused() || block.timestamp >= endDate) {
             return 0;
         }
@@ -349,7 +341,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         if (_totalAssets >= maxValue) {
             return 0;
         } else {
-            return min(maxValue - _totalAssets, getMaxDepositFromStrategy(sender, receiver));
+            return min(maxValue - _totalAssets, getMaxDepositFromStrategy(receiver));
         }
     }
 
@@ -389,21 +381,17 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         }
     }
 
-    function isDepositAllowed(
-        address sender,
-        address receiver,
-        uint256 amount
-    ) internal view returns (bool) {
+    function isDepositAllowed(address receiver, uint256 assets) internal view returns (bool) {
         if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.isDepositAllowed(sender, receiver, amount);
+            return depositStrategy.isDepositAllowed(receiver, assets);
         } else {
             return true;
         }
     }
 
-    function getMaxDepositFromStrategy(address sender, address receiver) internal view returns (uint256) {
+    function getMaxDepositFromStrategy(address receiver) internal view returns (uint256) {
         if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.maxDeposit(sender, receiver);
+            return depositStrategy.maxDeposit(receiver);
         } else {
             return type(uint256).max;
         }
