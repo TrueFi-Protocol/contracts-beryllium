@@ -193,7 +193,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         return sharesToMint;
     }
 
-    function previewMint(uint256 shares) public view override(BasePortfolio, IERC4626) returns (uint256) {
+    function previewMint(uint256 shares) public view returns (uint256) {
         return _assetsToDepositForShares(shares);
     }
 

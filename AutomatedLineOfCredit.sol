@@ -3,6 +3,7 @@ pragma solidity ^0.8.10;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IAutomatedLineOfCredit, AutomatedLineOfCreditStatus, IERC4626} from "./interfaces/IAutomatedLineOfCredit.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
@@ -297,6 +298,15 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     function previewDeposit(uint256 assets) public view returns (uint256) {
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
         return convertToShares(assets);
+    }
+
+    function previewMint(uint256 shares) public view returns (uint256) {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply == 0) {
+            return Math.ceilDiv((shares * 10**assetDecimals), 10**decimals());
+        } else {
+            return Math.ceilDiv((shares * totalAssets()), _totalSupply);
+        }
     }
 
     function maxMint(address receiver) public view returns (uint256) {

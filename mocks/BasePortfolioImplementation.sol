@@ -37,6 +37,10 @@ contract BasePortfolioImplementation is BasePortfolio {
         return 0;
     }
 
+    function previewMint(uint256) external pure returns (uint256) {
+        return 0;
+    }
+
     function previewRedeem(uint256) external pure returns (uint256) {
         return 0;
     }
