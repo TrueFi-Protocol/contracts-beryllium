@@ -172,10 +172,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
 
     function withdraw(uint256 shares, address sender) public override whenNotPaused {
         if (address(withdrawStrategy) != address(0x00)) {
-            require(
-                withdrawStrategy.isWithdrawAllowed(msg.sender, address(this), shares),
-                "AutomatedLineOfCredit: Withdraw not allowed"
-            );
+            require(withdrawStrategy.isWithdrawAllowed(msg.sender, shares), "AutomatedLineOfCredit: Withdraw not allowed");
         }
         require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot withdraw from itself");
         require(msg.sender != sender, "AutomatedLineOfCredit: Pool cannot withdraw from itself");
