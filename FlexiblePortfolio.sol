@@ -26,6 +26,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
 
     mapping(IDebtInstrument => bool) public isInstrumentAllowed;
 
+    uint8 internal _decimals;
     uint256 public maxValue;
     IValuationStrategy public valuationStrategy;
     IDepositStrategy public depositStrategy;
@@ -61,7 +62,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         __BasePortfolio_init(_protocolConfig, _duration, _asset, _manager, _managerFee);
         __ERC20_init(tokenMetadata.name, tokenMetadata.symbol);
         maxValue = _maxValue;
-
+        _decimals = _asset.decimals();
         _setWithdrawStrategy(_strategies.withdrawStrategy);
         _setDepositStrategy(_strategies.depositStrategy);
         _setTransferStrategy(_strategies.transferStrategy);
@@ -70,6 +71,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         for (uint256 i; i < _allowedInstruments.length; i++) {
             isInstrumentAllowed[_allowedInstruments[i]] = true;
         }
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return _decimals;
     }
 
     function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) public onlyRole(MANAGER_ROLE) {
@@ -200,7 +205,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     function _assetsToDepositForShares(uint256 shares) internal view returns (uint256) {
         uint256 assets;
         if (totalSupply() == 0) {
-            assets = Math.ceilDiv(shares * 10**assetDecimals, 10**decimals());
+            assets = shares;
         } else {
             assets = convertToAssetsRoundUp(shares);
         }
@@ -307,7 +312,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         uint256 __totalAssets = totalAssets();
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
-            return (assets * 10**decimals()) / (10**assetDecimals);
+            return assets;
         } else if (__totalAssets == 0) {
             return 0;
         } else {
