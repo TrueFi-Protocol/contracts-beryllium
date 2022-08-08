@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20WithDecimals} from "./IERC20WithDecimals.sol";
 import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IERC4626} from "./IERC4626.sol";
 import {IDepositStrategy} from "./IDepositStrategy.sol";
@@ -26,7 +26,7 @@ interface IAutomatedLineOfCredit is IERC4626 {
     function initialize(
         IProtocolConfig _protocolConfig,
         uint256 _duration,
-        IERC20 _asset,
+        IERC20WithDecimals _asset,
         address _borrower,
         uint256 _maxSize,
         InterestRateParameters memory _interestRateParameters,

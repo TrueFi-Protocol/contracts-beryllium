@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
 import {IFlexiblePortfolio} from "./interfaces/IFlexiblePortfolio.sol";
 import {IDebtInstrument} from "./interfaces/IDebtInstrument.sol";
 import {IBasePortfolio, IERC4626} from "./interfaces/IBasePortfolio.sol";
@@ -21,7 +21,7 @@ import {BasePortfolio} from "./BasePortfolio.sol";
 contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     uint256 private constant PRECISION = 1e30;
 
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20WithDecimals;
     using Address for address;
 
     mapping(IDebtInstrument => bool) public isInstrumentAllowed;
@@ -50,7 +50,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     function initialize(
         IProtocolConfig _protocolConfig,
         uint256 _duration,
-        IERC20 _asset,
+        IERC20WithDecimals _asset,
         address _manager,
         uint256 _maxValue,
         Strategies calldata _strategies,

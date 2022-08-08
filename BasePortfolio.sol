@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Upgradeable} from "./access/Upgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -12,7 +11,7 @@ import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
 import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
 
 abstract contract BasePortfolio is IBasePortfolio, ERC20Upgradeable, Upgradeable {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20WithDecimals;
 
     event Deposited(uint256 shares, uint256 amount, address indexed sender);
     event Withdrawn(uint256 shares, uint256 amount, address indexed sender);
@@ -26,7 +25,7 @@ abstract contract BasePortfolio is IBasePortfolio, ERC20Upgradeable, Upgradeable
     uint256 public constant BASIS_PRECISION = 10000;
 
     uint256 public endDate;
-    IERC20 public asset;
+    IERC20WithDecimals public asset;
     uint8 public assetDecimals;
 
     address public transferStrategy;
@@ -37,7 +36,7 @@ abstract contract BasePortfolio is IBasePortfolio, ERC20Upgradeable, Upgradeable
     function __BasePortfolio_init(
         IProtocolConfig _protocolConfig,
         uint256 _duration,
-        IERC20 _asset,
+        IERC20WithDecimals _asset,
         address _manager,
         uint256 _managerFee
     ) internal initializer {

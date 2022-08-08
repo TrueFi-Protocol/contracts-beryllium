@@ -2,9 +2,9 @@
 pragma solidity ^0.8.10;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
 import {IAutomatedLineOfCredit, AutomatedLineOfCreditStatus, IERC4626} from "./interfaces/IAutomatedLineOfCredit.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IDepositStrategy} from "./interfaces/IDepositStrategy.sol";
@@ -13,10 +13,11 @@ import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
 import {BasePortfolio} from "./BasePortfolio.sol";
 
 contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20WithDecimals;
 
     uint256 internal constant YEAR = 365 days;
 
+    uint8 internal _decimals;
     uint256 public maxSize;
     uint256 public borrowedAmount;
     uint256 public accruedInterest;
@@ -37,7 +38,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     function initialize(
         IProtocolConfig _protocolConfig,
         uint256 _duration,
-        IERC20 _asset,
+        IERC20WithDecimals _asset,
         address _borrower,
         uint256 _maxSize,
         InterestRateParameters memory _interestRateParameters,
@@ -54,6 +55,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         );
         __BasePortfolio_init(_protocolConfig, _duration, _asset, _borrower, 0);
         __ERC20_init(name, symbol);
+        _decimals = _asset.decimals();
         borrower = _borrower;
         interestRateParameters = _interestRateParameters;
         maxSize = _maxSize;
@@ -61,6 +63,10 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         _setDepositStrategy(_depositStrategy);
         _setWithdrawStrategy(_withdrawStrategy);
         _setTransferStrategy(_transferStrategy);
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return _decimals;
     }
 
     function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) public onlyRole(MANAGER_ROLE) {
@@ -283,7 +289,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         uint256 __totalAssets = totalAssets();
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
-            return (assets * 10**decimals()) / (10**assetDecimals);
+            return assets;
         } else if (__totalAssets == 0) {
             return 0;
         } else {
@@ -303,7 +309,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     function previewMint(uint256 shares) public view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
-            return Math.ceilDiv((shares * 10**assetDecimals), 10**decimals());
+            return shares;
         } else {
             return Math.ceilDiv((shares * totalAssets()), _totalSupply);
         }

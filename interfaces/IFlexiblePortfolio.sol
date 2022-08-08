@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20WithDecimals} from "./IERC20WithDecimals.sol";
 import {IBasePortfolio} from "./IBasePortfolio.sol";
 import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IDebtInstrument} from "./IDebtInstrument.sol";
@@ -26,7 +26,7 @@ interface IFlexiblePortfolio is IBasePortfolio {
     function initialize(
         IProtocolConfig _protocolConfig,
         uint256 _duration,
-        IERC20 _asset,
+        IERC20WithDecimals _asset,
         address _manager,
         uint256 _maxValue,
         Strategies calldata _strategies,

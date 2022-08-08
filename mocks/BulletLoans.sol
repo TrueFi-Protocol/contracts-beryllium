@@ -2,12 +2,12 @@
 pragma solidity ^0.8.10;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20WithDecimals} from "../interfaces/IERC20WithDecimals.sol";
 import {IBulletLoans, BulletLoanStatus} from "./interfaces/IBulletLoans.sol";
 
 contract BulletLoans is ERC721Upgradeable, IBulletLoans {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20WithDecimals;
 
     uint256 internal nextId;
     mapping(uint256 => LoanMetadata) public override loans;
@@ -23,7 +23,7 @@ contract BulletLoans is ERC721Upgradeable, IBulletLoans {
     }
 
     function createLoan(
-        IERC20 _asset,
+        IERC20WithDecimals _asset,
         uint256 _principal,
         uint256 _totalDebt,
         uint64 _duration,
@@ -90,7 +90,7 @@ contract BulletLoans is ERC721Upgradeable, IBulletLoans {
         return loans[instrumentId].principal;
     }
 
-    function asset(uint256 instrumentId) external view override returns (IERC20) {
+    function asset(uint256 instrumentId) external view override returns (IERC20WithDecimals) {
         return loans[instrumentId].asset;
     }
 

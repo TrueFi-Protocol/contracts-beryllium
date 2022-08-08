@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20WithDecimals} from "./IERC20WithDecimals.sol";
 
 interface IERC4626 {
-    function asset() external returns (IERC20 asset);
+    function asset() external returns (IERC20WithDecimals asset);
 
     function totalAssets() external returns (uint256 totalManagedAssets);
 

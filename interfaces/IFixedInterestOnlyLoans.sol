@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20WithDecimals} from "./IERC20WithDecimals.sol";
 import {IDebtInstrument} from "./IDebtInstrument.sol";
 
 enum FixedInterestOnlyLoanStatus {
@@ -26,11 +26,11 @@ interface IFixedInterestOnlyLoans is IDebtInstrument {
         uint16 periodsRepaid;
         uint32 gracePeriod;
         uint40 endDate;
-        IERC20 asset;
+        IERC20WithDecimals asset;
     }
 
     function issueLoan(
-        IERC20 _asset,
+        IERC20WithDecimals _asset,
         uint256 _principal,
         uint16 _periodCount,
         uint256 _periodPayment,
