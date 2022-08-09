@@ -203,6 +203,23 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         emit FeePaid(sender, protocolAddress, feeAmount);
     }
 
+    function mint(uint256 shares, address receiver) public virtual whenNotPaused returns (uint256) {
+        uint256 assets = previewMint(shares);
+        require(isDepositAllowed(msg.sender, assets), "AutomatedLineOfCredit: Sender not allowed to mint");
+        require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot mint");
+        require(receiver != address(this), "AutomatedLineOfCredit: Cannot mint to pool");
+        require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
+        require((totalAssets() + assets) <= maxSize, "AutomatedLineOfCredit: Mint would cause pool to exceed max size");
+
+        updateAccruedInterest();
+
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+        virtualTokenBalance += assets;
+        _mint(receiver, shares);
+        emit Deposit(msg.sender, receiver, assets, shares);
+        return assets;
+    }
+
     function getMaxSharesFromWithdrawStrategy(address owner) internal view returns (uint256) {
         uint256 maxAssetsAllowed = getMaxWithdrawFromStrategy(owner);
         if (maxAssetsAllowed == type(uint256).max) {

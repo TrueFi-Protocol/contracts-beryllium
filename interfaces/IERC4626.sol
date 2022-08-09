@@ -28,4 +28,6 @@ interface IERC4626 {
         address receiver,
         address owner
     ) external returns (uint256 assets);
+
+    function mint(uint256 shares, address receiver) external returns (uint256 assets);
 }

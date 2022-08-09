@@ -414,4 +414,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         }
         _burn(owner, shares);
     }
+
+    function mint(uint256 shares, address receiver) external pure returns (uint256) {
+        return 0;
+    }
 }
