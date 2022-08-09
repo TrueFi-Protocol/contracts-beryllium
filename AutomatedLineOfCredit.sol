@@ -178,9 +178,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     }
 
     function withdraw(uint256 shares, address sender) public override whenNotPaused {
-        if (address(withdrawStrategy) != address(0x00)) {
-            require(withdrawStrategy.isWithdrawAllowed(msg.sender, shares), "AutomatedLineOfCredit: Withdraw not allowed");
-        }
+        require(isWithdrawAllowed(msg.sender, shares), "AutomatedLineOfCredit: Withdraw not allowed");
         require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot withdraw from itself");
         require(msg.sender != sender, "AutomatedLineOfCredit: Pool cannot withdraw from itself");
         require(sender != address(this), "AutomatedLineOfCredit: Pool cannot withdraw from itself");
@@ -286,6 +284,18 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         } else {
             return min(maxSize - totalAssets(), getMaxDepositFromStrategy(receiver));
         }
+    }
+
+    function maxWithdraw(address owner) public view virtual returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+
+        uint256 maxStrategyShares = getMaxSharesFromWithdrawStrategy(owner);
+        uint256 maxUserShares = min(balanceOf(owner), maxStrategyShares);
+        uint256 assets = min(convertToAssets(maxUserShares), virtualTokenBalance);
+        uint256 feeAmount = calculateFeeAmount(assets);
+        return assets - feeAmount;
     }
 
     function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
@@ -401,6 +411,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     function updateAccruedInterest() internal {
         accruedInterest += unincludedInterest();
         lastUtilizationUpdateTime = block.timestamp;
+    }
+
+    function isWithdrawAllowed(address receiver, uint256 amount) internal view returns (bool) {
+        if (address(withdrawStrategy) != address(0x00)) {
+            return withdrawStrategy.isWithdrawAllowed(receiver, amount);
+        } else {
+            return true;
+        }
     }
 
     function getMaxWithdrawFromStrategy(address owner) internal view returns (uint256) {
