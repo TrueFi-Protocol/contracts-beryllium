@@ -17,6 +17,12 @@ interface IERC4626 {
 
     function previewWithdraw(uint256 assets) external view returns (uint256);
 
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) external returns (uint256);
+
     function maxRedeem(address owner) external view returns (uint256);
 
     function maxDeposit(address receiver) external view returns (uint256);

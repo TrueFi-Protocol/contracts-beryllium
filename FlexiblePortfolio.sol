@@ -458,4 +458,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     function previewWithdraw(uint256) public pure returns (uint256) {
         return 0;
     }
+
+    function withdraw(
+        uint256,
+        address,
+        address
+    ) public pure returns (uint256) {
+        return 0;
+    }
 }

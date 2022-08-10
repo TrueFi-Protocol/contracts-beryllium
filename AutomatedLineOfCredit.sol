@@ -212,22 +212,28 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         _burn(owner, shares);
     }
 
-    function withdraw(uint256 shares, address sender) public override whenNotPaused {
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override whenNotPaused returns (uint256) {
+        uint256 shares = previewWithdraw(assets);
         require(isWithdrawAllowed(msg.sender, shares), "AutomatedLineOfCredit: Withdraw not allowed");
-        require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot withdraw from itself");
-        require(msg.sender != sender, "AutomatedLineOfCredit: Pool cannot withdraw from itself");
-        require(sender != address(this), "AutomatedLineOfCredit: Pool cannot withdraw from itself");
+        require(receiver != address(this), "AutomatedLineOfCredit: Cannot withdraw to pool");
+        require(owner != address(this), "AutomatedLineOfCredit: Cannot withdraw from pool");
+        require(assets > 0, "AutomatedLineOfCredit: Cannot withdraw 0 assets");
+        require(assets <= virtualTokenBalance, "AutomatedLineOfCredit: Amount exceeds pool liquidity");
 
         updateAccruedInterest();
 
-        uint256 assets = convertToAssets(shares);
-        require(assets <= virtualTokenBalance, "AutomatedLineOfCredit: Amount exceeds pool balance");
         virtualTokenBalance -= assets;
 
-        _burn(sender, shares);
+        _burnFrom(owner, msg.sender, shares);
+        asset.safeTransfer(receiver, assets);
 
-        asset.safeTransfer(sender, assets);
-        emit Withdrawn(shares, assets, sender);
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+
+        return shares;
     }
 
     function mint(uint256 shares, address receiver) public virtual whenNotPaused returns (uint256) {

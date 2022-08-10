@@ -61,6 +61,14 @@ contract BasePortfolioImplementation is BasePortfolio {
         return 0;
     }
 
+    function withdraw(
+        uint256,
+        address,
+        address
+    ) external pure returns (uint256) {
+        return 0;
+    }
+
     function mint(uint256, address) external pure returns (uint256) {
         return 0;
     }
