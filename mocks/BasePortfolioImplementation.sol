@@ -57,7 +57,7 @@ contract BasePortfolioImplementation is BasePortfolio {
         return 0;
     }
 
-    function mint(uint256 shares, address receiver) external pure returns (uint256) {
+    function mint(uint256, address) external pure returns (uint256) {
         return 0;
     }
 }
