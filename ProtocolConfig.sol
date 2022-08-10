@@ -7,24 +7,20 @@ import {Upgradeable} from "./access/Upgradeable.sol";
 contract ProtocolConfig is Upgradeable, IProtocolConfig {
     uint256 public protocolFee;
     address public protocolAddress;
-    uint256 public automatedLineOfCreditPremiumFee;
     address public pauserAddress;
 
     event ProtocolFeeChanged(uint256 newProtocolFee);
     event ProtocolAddressChanged(address indexed newProtocolAddress);
     event PauserAddressChanged(address indexed newPauserAddress);
-    event AutomatedLineOfCreditPremiumFeeChanged(uint256 newFee);
 
     function initialize(
         uint256 _protocolFee,
         address _protocolAddress,
-        uint256 _automatedLineOfCreditPremiumFee,
         address _pauserAddress
     ) external initializer {
         __Upgradeable_init(msg.sender, _pauserAddress);
         protocolFee = _protocolFee;
         protocolAddress = _protocolAddress;
-        automatedLineOfCreditPremiumFee = _automatedLineOfCreditPremiumFee;
         pauserAddress = _pauserAddress;
     }
 
@@ -44,11 +40,5 @@ contract ProtocolConfig is Upgradeable, IProtocolConfig {
         require(newPauserAddress != pauserAddress, "ProtocolConfig: New pauser address needs to be different");
         pauserAddress = newPauserAddress;
         emit PauserAddressChanged(newPauserAddress);
-    }
-
-    function setAutomatedLineOfCreditPremiumFee(uint256 newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(newFee != automatedLineOfCreditPremiumFee, "ProtocolConfig: New fee needs to be different");
-        automatedLineOfCreditPremiumFee = newFee;
-        emit AutomatedLineOfCreditPremiumFeeChanged(newFee);
     }
 }
