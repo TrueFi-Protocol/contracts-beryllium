@@ -220,20 +220,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
 
         updateAccruedInterest();
 
-        uint256 _sharesValue = sharesValue(shares);
-        require(_sharesValue <= virtualTokenBalance, "AutomatedLineOfCredit: Amount exceeds pool balance");
-        virtualTokenBalance -= _sharesValue;
-        uint256 feeAmount = calculateFeeAmount(_sharesValue);
-        uint256 amountToWithdraw = _sharesValue - feeAmount;
+        uint256 assets = convertToAssets(shares);
+        require(assets <= virtualTokenBalance, "AutomatedLineOfCredit: Amount exceeds pool balance");
+        virtualTokenBalance -= assets;
 
         _burn(sender, shares);
 
-        address protocolAddress = protocolConfig.protocolAddress();
-        asset.safeTransfer(sender, amountToWithdraw);
-        asset.safeTransfer(protocolAddress, feeAmount);
-
-        emit Withdrawn(shares, amountToWithdraw, sender);
-        emit FeePaid(sender, protocolAddress, feeAmount);
+        asset.safeTransfer(sender, assets);
+        emit Withdrawn(shares, assets, sender);
     }
 
     function mint(uint256 shares, address receiver) public virtual whenNotPaused returns (uint256) {
@@ -325,12 +319,9 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         if (paused()) {
             return 0;
         }
-
         uint256 maxStrategyShares = getMaxSharesFromWithdrawStrategy(owner);
         uint256 maxUserShares = min(balanceOf(owner), maxStrategyShares);
-        uint256 assets = min(convertToAssets(maxUserShares), virtualTokenBalance);
-        uint256 feeAmount = calculateFeeAmount(assets);
-        return assets - feeAmount;
+        return min(convertToAssets(maxUserShares), virtualTokenBalance);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
@@ -345,10 +336,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
 
     function utilization() external view returns (uint256) {
         return _utilization(borrowedAmount);
-    }
-
-    function calculateAmountToWithdraw(uint256 sharesAmount) public view virtual override returns (uint256) {
-        return (sharesValue(sharesAmount) * (BASIS_PRECISION - totalFee())) / BASIS_PRECISION;
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
@@ -395,18 +382,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     }
 
     function previewRedeem(uint256 shares) public view virtual returns (uint256) {
-        uint256 assets = convertToAssets(shares);
-        uint256 fee = calculateFeeAmount(assets);
-        return assets - fee;
-    }
-
-    function calculateFeeAmount(uint256 _sharesValue) internal view virtual returns (uint256) {
-        return (_sharesValue * totalFee()) / BASIS_PRECISION;
-    }
-
-    function totalFee() internal view virtual returns (uint256) {
-        uint256 _totalFee = protocolConfig.protocolFee();
-        return _totalFee < BASIS_PRECISION ? _totalFee : BASIS_PRECISION;
+        return convertToAssets(shares);
     }
 
     function totalDebt() public view returns (uint256) {
