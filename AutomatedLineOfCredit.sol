@@ -34,6 +34,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     event DepositStrategyChanged(IDepositStrategy indexed oldStrategy, IDepositStrategy indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
+    event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
     function initialize(
         IProtocolConfig _protocolConfig,
@@ -175,6 +176,42 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
 
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
         return sharesToMint;
+    }
+
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public override whenNotPaused returns (uint256) {
+        require(receiver != address(this), "AutomatedLineOfCredit: Cannot redeem to pool");
+        require(owner != address(this), "AutomatedLineOfCredit: Cannot redeem from pool");
+        require(shares > 0, "AutomatedLineOfCredit: Cannot redeem 0 shares");
+
+        updateAccruedInterest();
+
+        uint256 assetAmount = convertToAssets(shares);
+        require(isWithdrawAllowed(owner, assetAmount), "AutomatedLineOfCredit: Sender not allowed to redeem");
+        require(assetAmount <= virtualTokenBalance, "AutomatedLineOfCredit: Redeemed assets exceed pool balance");
+        virtualTokenBalance -= assetAmount;
+        _burnFrom(owner, msg.sender, shares);
+        asset.safeTransfer(receiver, assetAmount);
+
+        emit Withdraw(msg.sender, receiver, owner, assetAmount, shares);
+
+        return assetAmount;
+    }
+
+    function _burnFrom(
+        address owner,
+        address spender,
+        uint256 shares
+    ) internal {
+        if (spender != owner) {
+            uint256 allowed = allowance(owner, msg.sender);
+            require(allowed >= shares, "AutomatedLineOfCredit: Caller not approved to burn given amount of shares");
+            _approve(owner, msg.sender, allowed - shares);
+        }
+        _burn(owner, shares);
     }
 
     function withdraw(uint256 shares, address sender) public override whenNotPaused {
@@ -458,13 +495,5 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
             return 0;
         }
         return (debt * BASIS_PRECISION) / _totalAssets(debt);
-    }
-
-    function redeem(
-        uint256,
-        address,
-        address
-    ) external pure returns (uint256) {
-        return 0;
     }
 }
