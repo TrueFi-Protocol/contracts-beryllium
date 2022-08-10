@@ -333,6 +333,10 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         return assets - feeAmount;
     }
 
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
+        return _convertToSharesRoundUp(assets);
+    }
+
     function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
         require(_maxSize != maxSize, "AutomatedLineOfCredit: New max size needs to be different");
         maxSize = _maxSize;
@@ -356,6 +360,15 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
             return 0;
         } else {
             return (assets * _totalSupply) / __totalAssets;
+        }
+    }
+
+    function _convertToSharesRoundUp(uint256 assets) internal view returns (uint256) {
+        uint256 __totalAssets = totalAssets();
+        if (__totalAssets == 0) {
+            return 0;
+        } else {
+            return Math.ceilDiv(assets * totalSupply(), __totalAssets);
         }
     }
 

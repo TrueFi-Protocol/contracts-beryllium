@@ -49,6 +49,10 @@ contract BasePortfolioImplementation is BasePortfolio {
         return 0;
     }
 
+    function previewWithdraw(uint256) public pure returns (uint256) {
+        return 0;
+    }
+
     function redeem(
         uint256,
         address,

@@ -454,4 +454,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         }
         _burn(owner, shares);
     }
+
+    function previewWithdraw(uint256) public pure returns (uint256) {
+        return 0;
+    }
 }
