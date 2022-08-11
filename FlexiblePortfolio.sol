@@ -198,6 +198,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     }
 
     function mint(uint256 shares, address receiver) public whenNotPaused returns (uint256) {
+        require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be mint receiver");
         uint256 assets = totalSupply() == 0 ? shares : convertToAssetsRoundUp(shares);
         require(isDepositAllowed(msg.sender, assets), "FlexiblePortfolio: Sender not allowed to mint");
         require(assets + totalAssets() <= maxValue, "FlexiblePortfolio: Portfolio is full");
