@@ -27,7 +27,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     mapping(IDebtInstrument => bool) public isInstrumentAllowed;
 
     uint8 internal _decimals;
-    uint256 public maxValue;
+    uint256 public maxSize;
     IValuationStrategy public valuationStrategy;
     IDepositStrategy public depositStrategy;
     IWithdrawStrategy public withdrawStrategy;
@@ -41,7 +41,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     event ValuationStrategyChanged(IValuationStrategy indexed strategy);
     event InstrumentRepaid(IDebtInstrument indexed instrument, uint256 indexed instrumentId, uint256 amount);
     event ManagerFeeChanged(uint256 newManagerFee);
-    event MaxValueChanged(uint256 newMaxValue);
+    event MaxSizeChanged(uint256 newMaxSize);
     event DepositStrategyChanged(IDepositStrategy indexed oldStrategy, IDepositStrategy indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
@@ -52,7 +52,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         uint256 _duration,
         IERC20WithDecimals _asset,
         address _manager,
-        uint256 _maxValue,
+        uint256 _maxSize,
         Strategies calldata _strategies,
         IDebtInstrument[] calldata _allowedInstruments,
         uint256 _managerFee,
@@ -60,7 +60,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     ) external initializer {
         __BasePortfolio_init(_protocolConfig, _duration, _asset, _manager, _managerFee);
         __ERC20_init(tokenMetadata.name, tokenMetadata.symbol);
-        maxValue = _maxValue;
+        maxSize = _maxSize;
         _decimals = _asset.decimals();
         _setWithdrawStrategy(_strategies.withdrawStrategy);
         _setDepositStrategy(_strategies.depositStrategy);
@@ -172,7 +172,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
      */
     function deposit(uint256 assets, address receiver) public override(BasePortfolio, IERC4626) whenNotPaused returns (uint256) {
         require(isDepositAllowed(msg.sender, assets), "FlexiblePortfolio: Deposit not allowed");
-        require(assets + totalAssets() <= maxValue, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
+        require(assets + totalAssets() <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
 
@@ -201,7 +201,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be mint receiver");
         uint256 assets = totalSupply() == 0 ? shares : convertToAssetsRoundUp(shares);
         require(isDepositAllowed(msg.sender, assets), "FlexiblePortfolio: Sender not allowed to mint");
-        require(assets + totalAssets() <= maxValue, "FlexiblePortfolio: Portfolio is full");
+        require(assets + totalAssets() <= maxSize, "FlexiblePortfolio: Portfolio is full");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
 
         uint256 _totalFee = totalFee();
@@ -380,10 +380,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
             return 0;
         }
         uint256 _totalAssets = totalAssets();
-        if (_totalAssets >= maxValue) {
+        if (_totalAssets >= maxSize) {
             return 0;
         } else {
-            return min(maxValue - _totalAssets, getMaxDepositFromStrategy(receiver));
+            return min(maxSize - _totalAssets, getMaxDepositFromStrategy(receiver));
         }
     }
 
@@ -391,10 +391,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         return 0;
     }
 
-    function setMaxValue(uint256 _maxValue) external onlyRole(MANAGER_ROLE) {
-        require(_maxValue != maxValue, "FlexiblePortfolio: New max value needs to be different");
-        maxValue = _maxValue;
-        emit MaxValueChanged(_maxValue);
+    function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
+        require(_maxSize != maxSize, "FlexiblePortfolio: New max size needs to be different");
+        maxSize = _maxSize;
+        emit MaxSizeChanged(_maxSize);
     }
 
     function cancelInstrument(IDebtInstrument instrument, uint256 instrumentId) external onlyRole(MANAGER_ROLE) {

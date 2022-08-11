@@ -28,7 +28,7 @@ interface IFlexiblePortfolio is IBasePortfolio {
         uint256 _duration,
         IERC20WithDecimals _asset,
         address _manager,
-        uint256 _maxValue,
+        uint256 _maxSize,
         Strategies calldata _strategies,
         IDebtInstrument[] calldata _allowedInstruments,
         uint256 _managerFee,

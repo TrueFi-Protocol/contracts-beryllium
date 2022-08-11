@@ -11,7 +11,7 @@ contract FlexiblePortfolioFactory is BasePortfolioFactory {
     function createPortfolio(
         IERC20WithDecimals _asset,
         uint256 _duration,
-        uint256 _maxValue,
+        uint256 _maxSize,
         IFlexiblePortfolio.Strategies calldata strategies,
         IDebtInstrument[] calldata _allowedInstruments,
         uint256 _managerFee,
@@ -23,7 +23,7 @@ contract FlexiblePortfolioFactory is BasePortfolioFactory {
             _duration,
             _asset,
             msg.sender,
-            _maxValue,
+            _maxSize,
             strategies,
             _allowedInstruments,
             _managerFee,
