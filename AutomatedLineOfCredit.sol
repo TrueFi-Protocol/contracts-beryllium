@@ -365,10 +365,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         }
     }
 
-    function sharesValue(uint256 sharesAmount) public view virtual returns (uint256) {
-        return (sharesAmount * totalAssets()) / totalSupply();
-    }
-
     function previewDeposit(uint256 assets) public view returns (uint256) {
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
         return convertToShares(assets);
