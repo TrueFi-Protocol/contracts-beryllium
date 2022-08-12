@@ -521,6 +521,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         }
     }
 
+    function accruedFee() public view returns (uint256) {
+        return _accruedFee(totalAssets());
+    }
+
+    function _accruedFee(uint256 _totalAssets) internal view returns (uint256) {
+        return ((block.timestamp - lastUpdateTime) * lastProtocolFee * _totalAssets) / YEAR / BASIS_PRECISION;
+    }
+
     function min(uint256 a, uint256 b) internal pure returns (uint256) {
         return a < b ? a : b;
     }
