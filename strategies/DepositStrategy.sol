@@ -9,7 +9,11 @@ contract DepositStrategy is IDepositStrategy {
         portfolio.deposit(amount, msg.sender);
     }
 
-    function isDepositAllowed(address, uint256) external pure returns (bool) {
+    function isDepositAllowed(
+        address,
+        uint256,
+        address
+    ) external pure returns (bool) {
         return true;
     }
 

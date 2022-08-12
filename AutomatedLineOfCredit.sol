@@ -159,7 +159,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) public override(BasePortfolio, IERC4626) whenNotPaused returns (uint256) {
-        require(isDepositAllowed(msg.sender, assets), "AutomatedLineOfCredit: Deposit not allowed");
+        require(isDepositAllowed(msg.sender, assets, receiver), "AutomatedLineOfCredit: Deposit not allowed");
         require(receiver != address(this), "AutomatedLineOfCredit: Pool cannot be deposit receiver");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
         require((totalAssets() + assets) <= maxSize, "AutomatedLineOfCredit: Deposit would cause pool to exceed max size");
@@ -238,7 +238,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
 
     function mint(uint256 shares, address receiver) public virtual whenNotPaused returns (uint256) {
         uint256 assets = previewMint(shares);
-        require(isDepositAllowed(msg.sender, assets), "AutomatedLineOfCredit: Sender not allowed to mint");
+        require(isDepositAllowed(msg.sender, assets, receiver), "AutomatedLineOfCredit: Sender not allowed to mint");
         require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot mint");
         require(receiver != address(this), "AutomatedLineOfCredit: Cannot mint to pool");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
@@ -460,9 +460,13 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         }
     }
 
-    function isDepositAllowed(address receiver, uint256 assets) internal view returns (bool) {
+    function isDepositAllowed(
+        address sender,
+        uint256 assets,
+        address receiver
+    ) internal view returns (bool) {
         if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.isDepositAllowed(receiver, assets);
+            return depositStrategy.isDepositAllowed(sender, assets, receiver);
         } else {
             return true;
         }
