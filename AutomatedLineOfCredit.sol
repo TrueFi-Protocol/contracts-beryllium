@@ -9,30 +9,43 @@ import {IAutomatedLineOfCredit, AutomatedLineOfCreditStatus, IERC4626} from "./i
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IDepositStrategy} from "./interfaces/IDepositStrategy.sol";
 import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
+import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
 
-import {BasePortfolio} from "./BasePortfolio.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {Upgradeable} from "./access/Upgradeable.sol";
 
-contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
+contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgradeable {
     using SafeERC20 for IERC20WithDecimals;
 
     uint256 internal constant YEAR = 365 days;
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    uint256 public constant BASIS_PRECISION = 10000;
 
+    IERC20WithDecimals public asset;
     uint8 internal _decimals;
+    uint256 public endDate;
     uint256 public maxSize;
+    address public borrower;
+    IProtocolConfig public protocolConfig;
+    InterestRateParameters public interestRateParameters;
+
+    uint256 public virtualTokenBalance;
     uint256 public borrowedAmount;
     uint256 public accruedInterest;
-    address public borrower;
     uint256 public lastProtocolFee;
-    InterestRateParameters public interestRateParameters;
     uint256 private lastUpdateTime;
+
     IDepositStrategy public depositStrategy;
     IWithdrawStrategy public withdrawStrategy;
+    ITransferStrategy public transferStrategy;
 
-    event Borrowed(uint256 amount);
-    event Repaid(uint256 amount);
-    event MaxSizeChanged(uint256 newMaxSize);
     event DepositStrategyChanged(IDepositStrategy indexed oldStrategy, IDepositStrategy indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
+    event TransferStrategyChanged(ITransferStrategy indexed oldStrategy, ITransferStrategy indexed newStrategy);
+
+    event MaxSizeChanged(uint256 newMaxSize);
+    event Borrowed(uint256 amount);
+    event Repaid(uint256 amount);
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
@@ -45,7 +58,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         InterestRateParameters memory _interestRateParameters,
         IDepositStrategy _depositStrategy,
         IWithdrawStrategy _withdrawStrategy,
-        address _transferStrategy,
+        ITransferStrategy _transferStrategy,
         string memory name,
         string memory symbol
     ) public initializer {
@@ -54,7 +67,13 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
                 _interestRateParameters.optimumUtilization <= _interestRateParameters.maxInterestRateUtilizationThreshold,
             "AutomatedLineOfCredit: Min. Util. <= Optimum Util. <= Max. Util. constraint not met"
         );
-        __BasePortfolio_init(_protocolConfig, _duration, _asset, _borrower, 0);
+        require(_duration > 0, "AutomatedLineOfCredit: Cannot have zero duration");
+
+        __Upgradeable_init(_protocolConfig.protocolAddress(), _protocolConfig.pauserAddress());
+        _grantRole(MANAGER_ROLE, _borrower);
+        protocolConfig = _protocolConfig;
+        endDate = block.timestamp + _duration;
+        asset = _asset;
         __ERC20_init(name, symbol);
         _decimals = _asset.decimals();
         borrower = _borrower;
@@ -89,6 +108,16 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         depositStrategy = _depositStrategy;
     }
 
+    function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(MANAGER_ROLE) {
+        require(_transferStrategy != transferStrategy, "AutomatedLineOfCredit: New transfer strategy needs to be different");
+        _setTransferStrategy(_transferStrategy);
+    }
+
+    function _setTransferStrategy(ITransferStrategy _transferStrategy) internal {
+        emit TransferStrategyChanged(transferStrategy, _transferStrategy);
+        transferStrategy = _transferStrategy;
+    }
+
     function borrow(uint256 amount) public whenNotPaused {
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
         require(address(this) != borrower, "AutomatedLineOfCredit: Pool cannot borrow from itself");
@@ -104,7 +133,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         emit Borrowed(amount);
     }
 
-    function totalAssets() public view override(IERC4626, BasePortfolio) returns (uint256) {
+    function totalAssets() public view returns (uint256) {
         return _totalAssets(totalDebt());
     }
 
@@ -161,7 +190,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
      * that may change over the contract's lifespan. As a safety measure, we recommend approving
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
-    function deposit(uint256 assets, address receiver) public override(BasePortfolio, IERC4626) whenNotPaused returns (uint256) {
+    function deposit(uint256 assets, address receiver) public whenNotPaused returns (uint256) {
         require(isDepositAllowed(msg.sender, assets, receiver), "AutomatedLineOfCredit: Deposit not allowed");
         require(receiver != address(this), "AutomatedLineOfCredit: Pool cannot be deposit receiver");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
@@ -184,7 +213,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         uint256 shares,
         address receiver,
         address owner
-    ) public override whenNotPaused returns (uint256) {
+    ) public whenNotPaused returns (uint256) {
         require(receiver != address(this), "AutomatedLineOfCredit: Cannot redeem to pool");
         require(owner != address(this), "AutomatedLineOfCredit: Cannot redeem from pool");
         require(shares > 0, "AutomatedLineOfCredit: Cannot redeem 0 shares");
@@ -221,7 +250,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         uint256 assets,
         address receiver,
         address owner
-    ) public override whenNotPaused returns (uint256) {
+    ) public whenNotPaused returns (uint256) {
         uint256 shares = previewWithdraw(assets);
         require(isWithdrawAllowed(msg.sender, shares, receiver, owner), "AutomatedLineOfCredit: Withdraw not allowed");
         require(receiver != address(this), "AutomatedLineOfCredit: Cannot withdraw to pool");
@@ -505,5 +534,24 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
             return 0;
         }
         return (debt * BASIS_PRECISION) / _totalAssets(debt);
+    }
+
+    function _transfer(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) internal override whenNotPaused {
+        if (address(transferStrategy) != address(0)) {
+            require(transferStrategy.canTransfer(sender, recipient, amount), "AutomatedLineOfCredit: This transfer not permitted");
+        }
+        super._transfer(sender, recipient, amount);
+    }
+
+    function _approve(
+        address owner,
+        address spender,
+        uint256 amount
+    ) internal override whenNotPaused {
+        super._approve(owner, spender, amount);
     }
 }

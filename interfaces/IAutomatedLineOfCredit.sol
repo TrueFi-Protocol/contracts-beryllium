@@ -6,6 +6,7 @@ import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IERC4626} from "./IERC4626.sol";
 import {IDepositStrategy} from "./IDepositStrategy.sol";
 import {IWithdrawStrategy} from "./IWithdrawStrategy.sol";
+import {ITransferStrategy} from "./ITransferStrategy.sol";
 
 enum AutomatedLineOfCreditStatus {
     Open,
@@ -32,7 +33,7 @@ interface IAutomatedLineOfCredit is IERC4626 {
         InterestRateParameters memory _interestRateParameters,
         IDepositStrategy _depositStrategy,
         IWithdrawStrategy _withdrawStrategy,
-        address _transferStrategy,
+        ITransferStrategy _transferStrategy,
         string memory name,
         string memory symbol
     ) external;
