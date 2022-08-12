@@ -31,7 +31,6 @@ interface IFlexiblePortfolio is IBasePortfolio {
         uint256 _maxSize,
         Strategies calldata _strategies,
         IDebtInstrument[] calldata _allowedInstruments,
-        uint256 _managerFee,
         ERC20Metadata calldata tokenMetadata
     ) external;
 

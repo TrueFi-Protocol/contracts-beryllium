@@ -40,7 +40,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     event AllowedInstrumentChanged(IDebtInstrument indexed instrument, bool isAllowed);
     event ValuationStrategyChanged(IValuationStrategy indexed strategy);
     event InstrumentRepaid(IDebtInstrument indexed instrument, uint256 indexed instrumentId, uint256 amount);
-    event ManagerFeeChanged(uint256 newManagerFee);
     event MaxSizeChanged(uint256 newMaxSize);
     event DepositStrategyChanged(IDepositStrategy indexed oldStrategy, IDepositStrategy indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
@@ -55,10 +54,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         uint256 _maxSize,
         Strategies calldata _strategies,
         IDebtInstrument[] calldata _allowedInstruments,
-        uint256 _managerFee,
         ERC20Metadata calldata tokenMetadata
     ) external initializer {
-        __BasePortfolio_init(_protocolConfig, _duration, _asset, _manager, _managerFee);
+        __BasePortfolio_init(_protocolConfig, _duration, _asset, _manager, 0);
         __ERC20_init(tokenMetadata.name, tokenMetadata.symbol);
         maxSize = _maxSize;
         _decimals = _asset.decimals();
@@ -144,26 +142,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         emit InstrumentUpdated(instrument);
     }
 
-    function _previewDeposit(uint256 amount)
-        internal
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
-        uint256 managersPart = (amount * managerFee) / BASIS_PRECISION;
-        uint256 protocolsPart = (amount * protocolConfig.protocolFee()) / BASIS_PRECISION;
-        require(protocolsPart + managersPart <= amount, "FlexiblePortfolio: Fee cannot exceed deposited amount");
-        uint256 amountToDeposit = amount - managersPart - protocolsPart;
-        return (amountToDeposit, managersPart, protocolsPart);
-    }
-
-    function previewDeposit(uint256 amount) public view returns (uint256) {
+    function previewDeposit(uint256 assets) public view returns (uint256) {
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
-        (uint256 amountToDeposit, , ) = _previewDeposit(amount);
-        return convertToShares(amountToDeposit);
+        return convertToShares(assets);
     }
 
     /* @notice This contract is upgradeable and interacts with settable deposit strategies,
@@ -176,24 +157,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
 
-        address protocolAddress = protocolConfig.protocolAddress();
-        address manager = getRoleMember(MANAGER_ROLE, 0);
-        (uint256 amountToDeposit, uint256 managersPart, uint256 protocolsPart) = _previewDeposit(assets);
-
-        uint256 sharesToMint = convertToShares(amountToDeposit);
+        uint256 sharesToMint = convertToShares(assets);
         require(sharesToMint > 0, "FlexiblePortfolio: Cannot mint 0 shares");
 
         _mint(receiver, sharesToMint);
-        virtualTokenBalance += amountToDeposit;
+        virtualTokenBalance += assets;
+        asset.safeTransferFrom(msg.sender, address(this), assets);
 
-        asset.safeTransferFrom(msg.sender, address(this), amountToDeposit);
-        asset.safeTransferFrom(msg.sender, manager, managersPart);
-        asset.safeTransferFrom(msg.sender, protocolAddress, protocolsPart);
-
-        emit FeePaid(msg.sender, manager, managersPart);
-        emit FeePaid(msg.sender, protocolAddress, protocolsPart);
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
-
         return sharesToMint;
     }
 
@@ -204,54 +175,17 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         require(assets + totalAssets() <= maxSize, "FlexiblePortfolio: Portfolio is full");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
 
-        uint256 _totalFee = totalFee();
-        uint256 assetsPlusFee = assetsBeforeFees(assets, _totalFee);
-
         _mint(receiver, shares);
         virtualTokenBalance += assets;
-
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        payFees(assetsPlusFee - assets, _totalFee);
 
-        emit Deposit(msg.sender, receiver, assetsPlusFee, shares);
-        return assetsPlusFee;
-    }
-
-    function payFees(uint256 feeAmount, uint256 _totalFee) internal {
-        if (_totalFee == 0) {
-            return;
-        }
-        address protocolAddress = protocolConfig.protocolAddress();
-        address manager = getRoleMember(MANAGER_ROLE, 0);
-        uint256 managersPart = (feeAmount * managerFee) / _totalFee;
-        uint256 protocolsPart = feeAmount - managersPart;
-
-        payFee(msg.sender, manager, managersPart);
-        payFee(msg.sender, protocolAddress, protocolsPart);
-    }
-
-    function payFee(
-        address from,
-        address to,
-        uint256 fee
-    ) internal {
-        asset.safeTransferFrom(from, to, fee);
-        emit FeePaid(from, to, fee);
+        emit Deposit(msg.sender, receiver, assets, shares);
+        return assets;
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
-        uint256 assetsAfterFees = totalSupply() == 0 ? shares : convertToAssetsRoundUp(shares);
-        uint256 _totalFee = totalFee();
-        return assetsBeforeFees(assetsAfterFees, _totalFee);
-    }
-
-    function assetsBeforeFees(uint256 assetsAfterFees, uint256 _totalFee) internal pure returns (uint256) {
-        return (assetsAfterFees * BASIS_PRECISION) / (BASIS_PRECISION - _totalFee);
-    }
-
-    function totalFee() internal view virtual returns (uint256) {
-        uint256 _totalFee = protocolConfig.protocolFee() + managerFee;
-        return _totalFee < BASIS_PRECISION ? _totalFee : BASIS_PRECISION;
+        uint256 assets = totalSupply() == 0 ? shares : convertToAssetsRoundUp(shares);
+        return assets;
     }
 
     function redeem(
@@ -367,12 +301,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
 
     function liquidValue() public view returns (uint256) {
         return virtualTokenBalance;
-    }
-
-    function setManagerFee(uint256 newManagerFee) external onlyRole(MANAGER_ROLE) {
-        require(newManagerFee != managerFee, "FlexiblePortfolio: New manager fee needs to be different");
-        managerFee = newManagerFee;
-        emit ManagerFeeChanged(newManagerFee);
     }
 
     function maxDeposit(address receiver) public view returns (uint256) {
