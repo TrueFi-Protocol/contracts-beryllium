@@ -22,6 +22,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     uint256 public borrowedAmount;
     uint256 public accruedInterest;
     address public borrower;
+    uint256 public lastProtocolFee;
     InterestRateParameters public interestRateParameters;
     uint256 private lastUtilizationUpdateTime;
     IDepositStrategy public depositStrategy;
@@ -99,7 +100,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         virtualTokenBalance -= amount;
 
         asset.safeTransfer(borrower, amount);
-
+        updateLastProtocolFee();
         emit Borrowed(amount);
     }
 
@@ -129,6 +130,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
         require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot repay itself");
         require(borrower != address(this), "AutomatedLineOfCredit: Pool cannot repay itself");
+
         uint256 _totalDebt = totalDebt();
 
         borrowedAmount = 0;
@@ -143,6 +145,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         virtualTokenBalance += amount;
         asset.safeTransferFrom(borrower, address(this), amount);
 
+        updateLastProtocolFee();
         emit Repaid(amount);
     }
 
@@ -172,6 +175,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         virtualTokenBalance += assets;
         asset.safeTransferFrom(msg.sender, address(this), assets);
 
+        updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
         return sharesToMint;
     }
@@ -194,6 +198,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assetAmount);
 
+        updateLastProtocolFee();
         emit Withdraw(msg.sender, receiver, owner, assetAmount, shares);
 
         return assetAmount;
@@ -231,6 +236,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
 
+        updateLastProtocolFee();
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
         return shares;
@@ -249,6 +255,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         asset.safeTransferFrom(msg.sender, address(this), assets);
         virtualTokenBalance += assets;
         _mint(receiver, shares);
+
+        updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
     }
@@ -432,6 +440,10 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         } else {
             return AutomatedLineOfCreditStatus.Open;
         }
+    }
+
+    function updateLastProtocolFee() internal {
+        lastProtocolFee = protocolConfig.protocolFee();
     }
 
     function updateAccruedInterest() internal {
