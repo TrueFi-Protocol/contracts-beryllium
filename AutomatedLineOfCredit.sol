@@ -188,7 +188,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         updateAccruedInterest();
 
         uint256 assetAmount = convertToAssets(shares);
-        require(isWithdrawAllowed(owner, assetAmount), "AutomatedLineOfCredit: Sender not allowed to redeem");
+        require(isWithdrawAllowed(msg.sender, assetAmount, receiver, owner), "AutomatedLineOfCredit: Sender not allowed to redeem");
         require(assetAmount <= virtualTokenBalance, "AutomatedLineOfCredit: Redeemed assets exceed pool balance");
         virtualTokenBalance -= assetAmount;
         _burnFrom(owner, msg.sender, shares);
@@ -218,7 +218,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         address owner
     ) public override whenNotPaused returns (uint256) {
         uint256 shares = previewWithdraw(assets);
-        require(isWithdrawAllowed(msg.sender, shares), "AutomatedLineOfCredit: Withdraw not allowed");
+        require(isWithdrawAllowed(msg.sender, shares, receiver, owner), "AutomatedLineOfCredit: Withdraw not allowed");
         require(receiver != address(this), "AutomatedLineOfCredit: Cannot withdraw to pool");
         require(owner != address(this), "AutomatedLineOfCredit: Cannot withdraw from pool");
         require(assets > 0, "AutomatedLineOfCredit: Cannot withdraw 0 assets");
@@ -439,9 +439,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
         lastUtilizationUpdateTime = block.timestamp;
     }
 
-    function isWithdrawAllowed(address receiver, uint256 amount) internal view returns (bool) {
+    function isWithdrawAllowed(
+        address sender,
+        uint256 amount,
+        address receiver,
+        address owner
+    ) internal view returns (bool) {
         if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.isWithdrawAllowed(receiver, amount);
+            return withdrawStrategy.isWithdrawAllowed(sender, amount, receiver, owner);
         } else {
             return true;
         }

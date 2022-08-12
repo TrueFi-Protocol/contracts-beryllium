@@ -9,7 +9,12 @@ contract WithdrawStrategy is IWithdrawStrategy {
         portfolio.withdraw(shares, msg.sender);
     }
 
-    function isWithdrawAllowed(address, uint256) external pure returns (bool) {
+    function isWithdrawAllowed(
+        address,
+        uint256,
+        address,
+        address
+    ) external pure returns (bool) {
         return true;
     }
 

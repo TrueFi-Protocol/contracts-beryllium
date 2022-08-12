@@ -260,7 +260,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         address owner
     ) public virtual whenNotPaused returns (uint256) {
         uint256 redeemedAssets = convertToAssets(shares);
-        require(isWithdrawAllowed(msg.sender, redeemedAssets), "FlexiblePortfolio: Withdraw not allowed");
+        require(isWithdrawAllowed(msg.sender, redeemedAssets, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
         require(redeemedAssets <= virtualTokenBalance, "FlexiblePortfolio: Amount exceeds pool balance");
 
         virtualTokenBalance -= redeemedAssets;
@@ -415,9 +415,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         }
     }
 
-    function isWithdrawAllowed(address sender, uint256 amount) internal view returns (bool) {
+    function isWithdrawAllowed(
+        address sender,
+        uint256 amount,
+        address receiver,
+        address owner
+    ) internal view returns (bool) {
         if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.isWithdrawAllowed(sender, amount);
+            return withdrawStrategy.isWithdrawAllowed(sender, amount, receiver, owner);
         } else {
             return true;
         }
