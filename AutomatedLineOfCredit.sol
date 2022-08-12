@@ -24,7 +24,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     address public borrower;
     uint256 public lastProtocolFee;
     InterestRateParameters public interestRateParameters;
-    uint256 private lastUtilizationUpdateTime;
+    uint256 private lastUpdateTime;
     IDepositStrategy public depositStrategy;
     IWithdrawStrategy public withdrawStrategy;
 
@@ -135,7 +135,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
 
         borrowedAmount = 0;
         accruedInterest = 0;
-        lastUtilizationUpdateTime = 0;
+        lastUpdateTime = 0;
 
         _repay(_totalDebt);
     }
@@ -280,7 +280,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
     }
 
     function unincludedInterest() public view returns (uint256) {
-        return (interestRate() * borrowedAmount * (block.timestamp - lastUtilizationUpdateTime)) / YEAR / BASIS_PRECISION;
+        return (interestRate() * borrowedAmount * (block.timestamp - lastUpdateTime)) / YEAR / BASIS_PRECISION;
     }
 
     function interestRate() public view returns (uint256) {
@@ -448,7 +448,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, BasePortfolio {
 
     function updateAccruedInterest() internal {
         accruedInterest += unincludedInterest();
-        lastUtilizationUpdateTime = block.timestamp;
+        lastUpdateTime = block.timestamp;
     }
 
     function isWithdrawAllowed(
