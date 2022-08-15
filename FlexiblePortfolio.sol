@@ -315,8 +315,13 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         }
     }
 
-    function maxWithdraw(address) public pure returns (uint256) {
-        return 0;
+    function maxWithdraw(address owner) public view virtual returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        uint256 maxStrategyWithdraw = getMaxWithdrawFromStrategy(owner);
+        uint256 maxUserWithdraw = min(convertToAssets(balanceOf(owner)), maxStrategyWithdraw);
+        return min(maxUserWithdraw, virtualTokenBalance);
     }
 
     function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
