@@ -393,8 +393,17 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         _burn(owner, shares);
     }
 
-    function previewWithdraw(uint256) public pure returns (uint256) {
-        return 0;
+    function _convertToSharesRoundUp(uint256 assets) internal view returns (uint256) {
+        uint256 __totalAssets = totalAssets();
+        if (__totalAssets == 0) {
+            return 0;
+        } else {
+            return Math.ceilDiv(assets * totalSupply(), __totalAssets);
+        }
+    }
+
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
+        return _convertToSharesRoundUp(assets);
     }
 
     function withdraw(
