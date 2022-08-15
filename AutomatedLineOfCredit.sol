@@ -362,9 +362,9 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         if (paused()) {
             return 0;
         }
-        uint256 maxStrategyShares = getMaxSharesFromWithdrawStrategy(owner);
-        uint256 maxUserShares = min(balanceOf(owner), maxStrategyShares);
-        return min(convertToAssets(maxUserShares), virtualTokenBalance);
+        uint256 maxStrategyWithdraw = getMaxWithdrawFromStrategy(owner);
+        uint256 maxUserWithdraw = min(convertToAssets(balanceOf(owner)), maxStrategyWithdraw);
+        return min(maxUserWithdraw, virtualTokenBalance);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
