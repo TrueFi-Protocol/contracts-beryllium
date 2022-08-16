@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IBasePortfolio} from "../interfaces/IBasePortfolio.sol";
-
 import {ITransferStrategy} from "../interfaces/ITransferStrategy.sol";
+import {IAccessControl} from "../interfaces/IAccessControl.sol";
 
 contract WhitelistTransferStrategy is ITransferStrategy {
     mapping(address => mapping(address => bool)) public isWhitelisted;
@@ -17,7 +16,7 @@ contract WhitelistTransferStrategy is ITransferStrategy {
     }
 
     function setWhitelistStatus(
-        IBasePortfolio portfolio,
+        IAccessControl portfolio,
         address sender,
         address recipient,
         bool status

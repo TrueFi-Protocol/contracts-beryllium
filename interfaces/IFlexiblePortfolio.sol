@@ -2,7 +2,6 @@
 pragma solidity ^0.8.10;
 
 import {IERC20WithDecimals} from "./IERC20WithDecimals.sol";
-import {IBasePortfolio} from "./IBasePortfolio.sol";
 import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IDebtInstrument} from "./IDebtInstrument.sol";
 import {IDepositStrategy} from "./IDepositStrategy.sol";
