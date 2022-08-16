@@ -2,20 +2,20 @@
 pragma solidity ^0.8.10;
 
 import {IDebtInstrument} from "./IDebtInstrument.sol";
-import {IBasePortfolio} from "./IBasePortfolio.sol";
+import {IFlexiblePortfolio} from "./IFlexiblePortfolio.sol";
 
 interface IValuationStrategy {
     function onInstrumentFunded(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external;
 
     function onInstrumentUpdated(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external;
 
-    function calculateValue(IBasePortfolio portfolio) external view returns (uint256);
+    function calculateValue(IFlexiblePortfolio portfolio) external view returns (uint256);
 }

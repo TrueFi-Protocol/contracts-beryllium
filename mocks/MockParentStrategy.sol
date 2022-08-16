@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IBasePortfolio} from "../interfaces/IBasePortfolio.sol";
+import {IFlexiblePortfolio} from "../interfaces/IFlexiblePortfolio.sol";
 import {IDebtInstrument} from "../interfaces/IDebtInstrument.sol";
 import {IValuationStrategy} from "../interfaces/IValuationStrategy.sol";
 
@@ -13,7 +13,7 @@ contract MockParentStrategy is IValuationStrategy {
     }
 
     function onInstrumentFunded(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external {
@@ -21,14 +21,14 @@ contract MockParentStrategy is IValuationStrategy {
     }
 
     function onInstrumentUpdated(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external {
         loanValuationStrategy.onInstrumentUpdated(portfolio, instrument, instrumentId);
     }
 
-    function calculateValue(IBasePortfolio) external pure returns (uint256) {
+    function calculateValue(IFlexiblePortfolio) external pure returns (uint256) {
         return 0;
     }
 }

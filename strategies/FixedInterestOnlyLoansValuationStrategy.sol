@@ -2,7 +2,7 @@
 pragma solidity ^0.8.10;
 
 import {IProtocolConfig} from "../interfaces/IProtocolConfig.sol";
-import {IBasePortfolio} from "../interfaces/IBasePortfolio.sol";
+import {IFlexiblePortfolio} from "../interfaces/IFlexiblePortfolio.sol";
 import {IDebtInstrument} from "../interfaces/IDebtInstrument.sol";
 import {IValuationStrategy} from "../interfaces/IValuationStrategy.sol";
 import {IFixedInterestOnlyLoans, FixedInterestOnlyLoanStatus} from "../interfaces/IFixedInterestOnlyLoans.sol";
@@ -12,10 +12,10 @@ contract FixedInterestOnlyLoansValuationStrategy is Upgradeable, IValuationStrat
     IFixedInterestOnlyLoans public fixedInterestOnlyLoansAddress;
     address public parentStrategy;
 
-    mapping(IBasePortfolio => uint256[]) public loans;
-    mapping(IBasePortfolio => mapping(uint256 => bool)) public isActive;
+    mapping(IFlexiblePortfolio => uint256[]) public loans;
+    mapping(IFlexiblePortfolio => mapping(uint256 => bool)) public isActive;
 
-    modifier onlyPortfolioOrParentStrategy(IBasePortfolio portfolio) {
+    modifier onlyPortfolioOrParentStrategy(IFlexiblePortfolio portfolio) {
         require(
             msg.sender == address(portfolio) || msg.sender == parentStrategy,
             "FixedInterestOnlyLoansValuationStrategy: Only portfolio or parent strategy"
@@ -34,7 +34,7 @@ contract FixedInterestOnlyLoansValuationStrategy is Upgradeable, IValuationStrat
     }
 
     function onInstrumentFunded(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external onlyPortfolioOrParentStrategy(portfolio) whenNotPaused {
@@ -48,7 +48,7 @@ contract FixedInterestOnlyLoansValuationStrategy is Upgradeable, IValuationStrat
     }
 
     function onInstrumentUpdated(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external onlyPortfolioOrParentStrategy(portfolio) whenNotPaused {
@@ -56,7 +56,7 @@ contract FixedInterestOnlyLoansValuationStrategy is Upgradeable, IValuationStrat
         _tryToExcludeLoan(portfolio, instrumentId);
     }
 
-    function _tryToExcludeLoan(IBasePortfolio portfolio, uint256 instrumentId) private {
+    function _tryToExcludeLoan(IFlexiblePortfolio portfolio, uint256 instrumentId) private {
         IFixedInterestOnlyLoans.LoanMetadata memory loan = fixedInterestOnlyLoansAddress.loanData(instrumentId);
 
         if (loan.status != FixedInterestOnlyLoanStatus.Started && isActive[portfolio][instrumentId]) {
@@ -73,7 +73,7 @@ contract FixedInterestOnlyLoansValuationStrategy is Upgradeable, IValuationStrat
         }
     }
 
-    function calculateValue(IBasePortfolio portfolio) external view returns (uint256) {
+    function calculateValue(IFlexiblePortfolio portfolio) external view returns (uint256) {
         uint256[] memory _loans = loans[portfolio];
         uint256 _value = 0;
         for (uint256 i = 0; i < _loans.length; i++) {
@@ -84,7 +84,7 @@ contract FixedInterestOnlyLoansValuationStrategy is Upgradeable, IValuationStrat
         return _value;
     }
 
-    function activeLoans(IBasePortfolio portfolio) external view returns (uint256[] memory) {
+    function activeLoans(IFlexiblePortfolio portfolio) external view returns (uint256[] memory) {
         return loans[portfolio];
     }
 

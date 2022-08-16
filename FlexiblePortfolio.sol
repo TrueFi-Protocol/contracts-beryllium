@@ -4,33 +4,39 @@ pragma solidity ^0.8.10;
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
 import {IFlexiblePortfolio} from "./interfaces/IFlexiblePortfolio.sol";
 import {IDebtInstrument} from "./interfaces/IDebtInstrument.sol";
-import {IBasePortfolio, IERC4626} from "./interfaces/IBasePortfolio.sol";
+import {IERC4626} from "./interfaces/IERC4626.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
 import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
 import {IDepositStrategy} from "./interfaces/IDepositStrategy.sol";
 import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Upgradeable} from "./access/Upgradeable.sol";
 
-import {BasePortfolio} from "./BasePortfolio.sol";
-
-contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
-    uint256 private constant PRECISION = 1e30;
-
+contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable {
     using SafeERC20 for IERC20WithDecimals;
     using Address for address;
 
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+
+    IERC20WithDecimals public asset;
+    uint8 internal _decimals;
+    uint256 public endDate;
+    uint256 public maxSize;
+    IProtocolConfig public protocolConfig;
     mapping(IDebtInstrument => bool) public isInstrumentAllowed;
 
-    uint8 internal _decimals;
-    uint256 public maxSize;
+    uint256 public virtualTokenBalance;
+
     IValuationStrategy public valuationStrategy;
     IDepositStrategy public depositStrategy;
     IWithdrawStrategy public withdrawStrategy;
+    ITransferStrategy public transferStrategy;
 
     mapping(IDebtInstrument => mapping(uint256 => bool)) public isInstrumentAdded;
 
@@ -38,11 +44,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     event InstrumentFunded(IDebtInstrument indexed instrument, uint256 indexed instrumentId);
     event InstrumentUpdated(IDebtInstrument indexed instrument);
     event AllowedInstrumentChanged(IDebtInstrument indexed instrument, bool isAllowed);
-    event ValuationStrategyChanged(IValuationStrategy indexed strategy);
     event InstrumentRepaid(IDebtInstrument indexed instrument, uint256 indexed instrumentId, uint256 amount);
+
     event MaxSizeChanged(uint256 newMaxSize);
+    event ValuationStrategyChanged(IValuationStrategy indexed strategy);
     event DepositStrategyChanged(IDepositStrategy indexed oldStrategy, IDepositStrategy indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
+    event TransferStrategyChanged(ITransferStrategy indexed oldStrategy, ITransferStrategy indexed newStrategy);
+
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
@@ -56,12 +65,17 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         IDebtInstrument[] calldata _allowedInstruments,
         ERC20Metadata calldata tokenMetadata
     ) external initializer {
-        __BasePortfolio_init(_protocolConfig, _duration, _asset, _manager, 0);
+        require(_duration > 0, "FlexiblePortfolio: Cannot have zero duration");
+        __Upgradeable_init(_protocolConfig.protocolAddress(), _protocolConfig.pauserAddress());
         __ERC20_init(tokenMetadata.name, tokenMetadata.symbol);
+        _grantRole(MANAGER_ROLE, _manager);
+        protocolConfig = _protocolConfig;
+        endDate = block.timestamp + _duration;
+        asset = _asset;
         maxSize = _maxSize;
         _decimals = _asset.decimals();
-        _setWithdrawStrategy(_strategies.withdrawStrategy);
         _setDepositStrategy(_strategies.depositStrategy);
+        _setWithdrawStrategy(_strategies.withdrawStrategy);
         _setTransferStrategy(_strategies.transferStrategy);
         valuationStrategy = _strategies.valuationStrategy;
 
@@ -151,7 +165,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
      * that may change over the contract's lifespan. As a safety measure, we recommend approving
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
-    function deposit(uint256 assets, address receiver) public override(BasePortfolio, IERC4626) whenNotPaused returns (uint256) {
+    function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
         require(isDepositAllowed(msg.sender, assets, receiver), "FlexiblePortfolio: Deposit not allowed");
         require(assets + totalAssets() <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
@@ -272,7 +286,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
         return Math.ceilDiv(sharesAmount * totalAssets(), _totalSupply);
     }
 
-    function totalAssets() public view override(IERC4626, BasePortfolio) returns (uint256) {
+    function totalAssets() public view override returns (uint256) {
         if (address(valuationStrategy) == address(0)) {
             return 0;
         }
@@ -429,5 +443,37 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return shares;
+    }
+
+    function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(MANAGER_ROLE) {
+        require(_transferStrategy != transferStrategy, "FlexiblePortfolio: New transfer strategy needs to be different");
+        _setTransferStrategy(_transferStrategy);
+    }
+
+    function _setTransferStrategy(ITransferStrategy _transferStrategy) internal {
+        emit TransferStrategyChanged(transferStrategy, _transferStrategy);
+        transferStrategy = _transferStrategy;
+    }
+
+    function _transfer(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) internal override whenNotPaused {
+        if (address(transferStrategy) != address(0)) {
+            require(
+                ITransferStrategy(transferStrategy).canTransfer(sender, recipient, amount),
+                "FlexiblePortfolio: This transfer not permitted"
+            );
+        }
+        super._transfer(sender, recipient, amount);
+    }
+
+    function _approve(
+        address owner,
+        address spender,
+        uint256 amount
+    ) internal override whenNotPaused {
+        super._approve(owner, spender, amount);
     }
 }

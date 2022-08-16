@@ -6,17 +6,17 @@ import {IDebtInstrument} from "../interfaces/IDebtInstrument.sol";
 import {IBulletLoans, BulletLoanStatus} from "./interfaces/IBulletLoans.sol";
 import {IProtocolConfig} from "../interfaces/IProtocolConfig.sol";
 import {Upgradeable} from "../access/Upgradeable.sol";
-import {IBasePortfolio} from "../interfaces/IBasePortfolio.sol";
+import {IFlexiblePortfolio} from "../interfaces/IFlexiblePortfolio.sol";
 
 contract BulletLoansValuationStrategy is Upgradeable, IValuationStrategy {
     address public parentStrategy;
     IBulletLoans public bulletLoansAddress;
-    mapping(IBasePortfolio => uint256[]) public bulletLoans;
+    mapping(IFlexiblePortfolio => uint256[]) public bulletLoans;
 
-    event InstrumentAdded(IBasePortfolio indexed portfolio, IDebtInstrument indexed instrument, uint256 indexed instrumentId);
-    event InstrumentRemoved(IBasePortfolio indexed portfolio, IDebtInstrument indexed instrument, uint256 indexed instrumentId);
+    event InstrumentAdded(IFlexiblePortfolio indexed portfolio, IDebtInstrument indexed instrument, uint256 indexed instrumentId);
+    event InstrumentRemoved(IFlexiblePortfolio indexed portfolio, IDebtInstrument indexed instrument, uint256 indexed instrumentId);
 
-    modifier onlyPortfolioOrParentStrategy(IBasePortfolio portfolio) {
+    modifier onlyPortfolioOrParentStrategy(IFlexiblePortfolio portfolio) {
         require(
             msg.sender == address(portfolio) || msg.sender == parentStrategy,
             "BulletLoansValuationStrategy: Only portfolio or parent strategy"
@@ -35,7 +35,7 @@ contract BulletLoansValuationStrategy is Upgradeable, IValuationStrategy {
     }
 
     function onInstrumentFunded(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external onlyPortfolioOrParentStrategy(portfolio) {
@@ -45,12 +45,12 @@ contract BulletLoansValuationStrategy is Upgradeable, IValuationStrategy {
         emit InstrumentAdded(portfolio, instrument, instrumentId);
     }
 
-    function getBulletLoans(IBasePortfolio portfolio) public view returns (uint256[] memory) {
+    function getBulletLoans(IFlexiblePortfolio portfolio) public view returns (uint256[] memory) {
         return bulletLoans[portfolio];
     }
 
     function onInstrumentUpdated(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external {
@@ -70,7 +70,7 @@ contract BulletLoansValuationStrategy is Upgradeable, IValuationStrategy {
         }
     }
 
-    function calculateValue(IBasePortfolio portfolio) public view returns (uint256) {
+    function calculateValue(IFlexiblePortfolio portfolio) public view returns (uint256) {
         uint256 _value = 0;
         for (uint256 i = 0; i < bulletLoans[portfolio].length; i++) {
             (

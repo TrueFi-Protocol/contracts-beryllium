@@ -4,14 +4,14 @@ pragma solidity ^0.8.10;
 import {Upgradeable} from "../access/Upgradeable.sol";
 import {IValuationStrategy} from "../interfaces/IValuationStrategy.sol";
 import {IDebtInstrument} from "../interfaces/IDebtInstrument.sol";
-import {IBasePortfolio} from "../interfaces/IBasePortfolio.sol";
+import {IFlexiblePortfolio} from "../interfaces/IFlexiblePortfolio.sol";
 import {IProtocolConfig} from "../interfaces/IProtocolConfig.sol";
 
 contract MultiInstrumentValuationStrategy is Upgradeable, IValuationStrategy {
     IDebtInstrument[] public instruments;
     mapping(IDebtInstrument => IValuationStrategy) public strategies;
 
-    modifier onlyPortfolio(IBasePortfolio portfolio) {
+    modifier onlyPortfolio(IFlexiblePortfolio portfolio) {
         require(msg.sender == address(portfolio), "MultiInstrumentValuationStrategy: Can only be called by portfolio");
         _;
     }
@@ -30,7 +30,7 @@ contract MultiInstrumentValuationStrategy is Upgradeable, IValuationStrategy {
     }
 
     function onInstrumentFunded(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external onlyPortfolio(portfolio) whenNotPaused {
@@ -38,7 +38,7 @@ contract MultiInstrumentValuationStrategy is Upgradeable, IValuationStrategy {
     }
 
     function onInstrumentUpdated(
-        IBasePortfolio portfolio,
+        IFlexiblePortfolio portfolio,
         IDebtInstrument instrument,
         uint256 instrumentId
     ) external onlyPortfolio(portfolio) whenNotPaused {
@@ -49,7 +49,7 @@ contract MultiInstrumentValuationStrategy is Upgradeable, IValuationStrategy {
         return instruments;
     }
 
-    function calculateValue(IBasePortfolio portfolio) external view returns (uint256) {
+    function calculateValue(IFlexiblePortfolio portfolio) external view returns (uint256) {
         uint256 value = 0;
         for (uint256 i; i < instruments.length; i++) {
             value += strategies[instruments[i]].calculateValue(portfolio);
