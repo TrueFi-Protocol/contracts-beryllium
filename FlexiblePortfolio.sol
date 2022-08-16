@@ -412,10 +412,22 @@ contract FlexiblePortfolio is IFlexiblePortfolio, BasePortfolio {
     }
 
     function withdraw(
-        uint256,
-        address,
-        address
-    ) public pure returns (uint256) {
-        return 0;
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public whenNotPaused returns (uint256) {
+        uint256 shares = _convertToSharesRoundUp(assets);
+        require(isWithdrawAllowed(msg.sender, shares, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
+        require(receiver != address(this), "FlexiblePortfolio: Cannot withdraw to pool");
+        require(owner != address(this), "FlexiblePortfolio: Cannot withdraw from pool");
+        require(assets > 0, "FlexiblePortfolio: Cannot withdraw 0 assets");
+        require(assets <= virtualTokenBalance, "FlexiblePortfolio: Amount exceeds pool liquidity");
+
+        virtualTokenBalance -= assets;
+        _burnFrom(owner, msg.sender, shares);
+        asset.safeTransfer(receiver, assets);
+
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+        return shares;
     }
 }
