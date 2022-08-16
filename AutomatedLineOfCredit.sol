@@ -122,6 +122,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
         require(address(this) != borrower, "AutomatedLineOfCredit: Pool cannot borrow from itself");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
+        require(amount > 0, "AutomatedLineOfCredit: Cannot borrow zero assets");
         require(amount <= virtualTokenBalance, "AutomatedLineOfCredit: Amount exceeds pool balance");
 
         updateAccruedInterest();
