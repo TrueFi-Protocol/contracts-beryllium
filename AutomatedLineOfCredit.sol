@@ -33,6 +33,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     uint256 public borrowedAmount;
     uint256 public accruedInterest;
     uint256 public lastProtocolFee;
+    uint256 public unpaidFee;
     uint256 private lastUpdateTime;
 
     IDepositStrategy public depositStrategy;
@@ -46,6 +47,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     event MaxSizeChanged(uint256 newMaxSize);
     event Borrowed(uint256 amount);
     event Repaid(uint256 amount);
+    event FeePaid(address indexed protocolAddress, uint256 amount);
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
@@ -122,20 +124,23 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
         require(address(this) != borrower, "AutomatedLineOfCredit: Pool cannot borrow from itself");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
+        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
+        uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
+        require(amount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds pool balance");
         require(amount > 0, "AutomatedLineOfCredit: Cannot borrow zero assets");
-        require(amount <= virtualTokenBalance, "AutomatedLineOfCredit: Amount exceeds pool balance");
 
-        updateAccruedInterest();
         borrowedAmount += amount;
-        virtualTokenBalance -= amount;
 
         asset.safeTransfer(borrower, amount);
+        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - amount);
+
         updateLastProtocolFee();
         emit Borrowed(amount);
     }
 
     function totalAssets() public view returns (uint256) {
-        return _totalAssets(totalDebt());
+        (uint256 assets, ) = getTotalAssetsAndFee(totalDebt());
+        return assets;
     }
 
     function repay(uint256 amount) public whenNotPaused {
@@ -143,7 +148,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot repay itself");
         require(borrower != address(this), "AutomatedLineOfCredit: Pool cannot repay itself");
 
-        updateAccruedInterest();
+        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
 
         if (amount > accruedInterest) {
             uint256 repaidPrincipal = amount - accruedInterest;
@@ -153,7 +158,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
             accruedInterest -= amount;
         }
 
-        _repay(amount);
+        _repay(amount, _fee);
     }
 
     function repayInFull() external whenNotPaused {
@@ -165,26 +170,31 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
         borrowedAmount = 0;
         accruedInterest = 0;
-        lastUpdateTime = 0;
-
-        _repay(_totalDebt);
+        (, uint256 feeToPay) = getTotalAssetsAndFee(_totalDebt);
+        _repay(_totalDebt, feeToPay);
+        lastUpdateTime = block.timestamp;
     }
 
-    function _repay(uint256 amount) internal {
+    function _repay(uint256 amount, uint256 _fee) internal {
         require(amount > 0, "AutomatedLineOfCredit: Repayment amount must be greater than 0");
-        virtualTokenBalance += amount;
+
         asset.safeTransferFrom(borrower, address(this), amount);
+        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance + amount);
 
         updateLastProtocolFee();
         emit Repaid(amount);
     }
 
     function convertToAssets(uint256 sharesAmount) public view returns (uint256) {
+        return _convertToAssets(sharesAmount, totalAssets());
+    }
+
+    function _convertToAssets(uint256 sharesAmount, uint256 _totalAssets) public view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return 0;
         }
-        return (sharesAmount * totalAssets()) / _totalSupply;
+        return (sharesAmount * _totalAssets) / _totalSupply;
     }
 
     /* @notice This contract is upgradeable and interacts with settable deposit strategies,
@@ -192,18 +202,18 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) public whenNotPaused returns (uint256) {
-        require(isDepositAllowed(msg.sender, assets, receiver), "AutomatedLineOfCredit: Deposit not allowed");
         require(receiver != address(this), "AutomatedLineOfCredit: Pool cannot be deposit receiver");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
-        require((totalAssets() + assets) <= maxSize, "AutomatedLineOfCredit: Deposit would cause pool to exceed max size");
+        require(isDepositAllowed(msg.sender, assets, receiver), "AutomatedLineOfCredit: Deposit not allowed");
 
-        updateAccruedInterest();
-
-        uint256 sharesToMint = convertToShares(assets);
+        (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
+        uint256 sharesToMint = _convertToShares(assets, _totalAssets);
+        require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Deposit would cause pool to exceed max size");
         require(sharesToMint > 0, "AutomatedLineOfCredit: Cannot mint 0 shares");
-        _mint(receiver, sharesToMint);
-        virtualTokenBalance += assets;
+
         asset.safeTransferFrom(msg.sender, address(this), assets);
+        _mint(receiver, sharesToMint);
+        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance + assets);
 
         updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
@@ -219,14 +229,15 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(owner != address(this), "AutomatedLineOfCredit: Cannot redeem from pool");
         require(shares > 0, "AutomatedLineOfCredit: Cannot redeem 0 shares");
 
-        updateAccruedInterest();
-
-        uint256 assetAmount = convertToAssets(shares);
+        (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
+        uint256 assetAmount = _convertToAssets(shares, _totalAssets);
+        uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
+        require(assetAmount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Redeemed assets exceed pool balance");
         require(isWithdrawAllowed(msg.sender, assetAmount, receiver, owner), "AutomatedLineOfCredit: Sender not allowed to redeem");
-        require(assetAmount <= virtualTokenBalance, "AutomatedLineOfCredit: Redeemed assets exceed pool balance");
-        virtualTokenBalance -= assetAmount;
+
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assetAmount);
+        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - assetAmount);
 
         updateLastProtocolFee();
         emit Withdraw(msg.sender, receiver, owner, assetAmount, shares);
@@ -252,19 +263,19 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         address receiver,
         address owner
     ) public whenNotPaused returns (uint256) {
-        uint256 shares = previewWithdraw(assets);
-        require(isWithdrawAllowed(msg.sender, shares, receiver, owner), "AutomatedLineOfCredit: Withdraw not allowed");
         require(receiver != address(this), "AutomatedLineOfCredit: Cannot withdraw to pool");
         require(owner != address(this), "AutomatedLineOfCredit: Cannot withdraw from pool");
         require(assets > 0, "AutomatedLineOfCredit: Cannot withdraw 0 assets");
-        require(assets <= virtualTokenBalance, "AutomatedLineOfCredit: Amount exceeds pool liquidity");
 
-        updateAccruedInterest();
-
-        virtualTokenBalance -= assets;
+        (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
+        uint256 shares = _previewWithdraw(assets, _totalAssets);
+        uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
+        require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds pool liquidity");
+        require(isWithdrawAllowed(msg.sender, shares, receiver, owner), "AutomatedLineOfCredit: Withdraw not allowed");
 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
+        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - assets);
 
         updateLastProtocolFee();
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
@@ -273,22 +284,55 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function mint(uint256 shares, address receiver) public virtual whenNotPaused returns (uint256) {
-        uint256 assets = previewMint(shares);
-        require(isDepositAllowed(msg.sender, assets, receiver), "AutomatedLineOfCredit: Sender not allowed to mint");
         require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot mint");
         require(receiver != address(this), "AutomatedLineOfCredit: Cannot mint to pool");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
-        require((totalAssets() + assets) <= maxSize, "AutomatedLineOfCredit: Mint would cause pool to exceed max size");
 
-        updateAccruedInterest();
+        (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
+        uint256 assets = _previewMint(shares, _totalAssets);
+        require(isDepositAllowed(msg.sender, assets, receiver), "AutomatedLineOfCredit: Sender not allowed to mint");
+        require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Mint would cause pool to exceed max size");
 
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        virtualTokenBalance += assets;
         _mint(receiver, shares);
+        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance + assets);
 
         updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
+    }
+
+    function payFeeAndUpdateVirtualTokenBalance(uint256 _fee, uint256 totalBalance) internal {
+        uint256 _feePaid = payFee(_fee, totalBalance);
+        virtualTokenBalance = totalBalance - _feePaid;
+    }
+
+    function payFee(uint256 _fee, uint256 balance) internal returns (uint256) {
+        uint256 feeToPay;
+        if (balance < _fee) {
+            feeToPay = balance;
+            unpaidFee = _fee - balance;
+        } else {
+            feeToPay = _fee;
+            unpaidFee = 0;
+        }
+        address protocolAddress = protocolConfig.protocolAddress();
+        asset.safeTransfer(protocolAddress, feeToPay);
+        emit FeePaid(protocolAddress, feeToPay);
+        return feeToPay;
+    }
+
+    function updateAndPayFee() public {
+        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
+        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance);
+        updateLastProtocolFee();
+    }
+
+    function updateAndGetTotalAssetsAndFee() internal returns (uint256, uint256) {
+        accruedInterest += unincludedInterest();
+        (uint256 _totalAssets, uint256 fee) = getTotalAssetsAndFee(borrowedAmount + accruedInterest);
+        lastUpdateTime = block.timestamp;
+        return (_totalAssets, fee);
     }
 
     function getMaxSharesFromWithdrawStrategy(address owner) internal view returns (uint256) {
@@ -369,7 +413,16 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        return _convertToSharesRoundUp(assets);
+        uint256 _totalAssets = totalAssets();
+        return _previewWithdraw(assets, _totalAssets);
+    }
+
+    function _previewWithdraw(uint256 assets, uint256 _totalAssets) internal view returns (uint256) {
+        if (_totalAssets == 0) {
+            return 0;
+        } else {
+            return Math.ceilDiv(assets * totalSupply(), _totalAssets);
+        }
     }
 
     function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
@@ -383,23 +436,17 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
-        uint256 __totalAssets = totalAssets();
+        return _convertToShares(assets, totalAssets());
+    }
+
+    function _convertToShares(uint256 assets, uint256 _totalAssets) public view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return assets;
-        } else if (__totalAssets == 0) {
+        } else if (_totalAssets == 0) {
             return 0;
         } else {
-            return (assets * _totalSupply) / __totalAssets;
-        }
-    }
-
-    function _convertToSharesRoundUp(uint256 assets) internal view returns (uint256) {
-        uint256 __totalAssets = totalAssets();
-        if (__totalAssets == 0) {
-            return 0;
-        } else {
-            return Math.ceilDiv(assets * totalSupply(), __totalAssets);
+            return (assets * _totalSupply) / _totalAssets;
         }
     }
 
@@ -409,11 +456,15 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
+        return _previewMint(shares, totalAssets());
+    }
+
+    function _previewMint(uint256 shares, uint256 _totalAssets) internal view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return shares;
         } else {
-            return Math.ceilDiv((shares * totalAssets()), _totalSupply);
+            return Math.ceilDiv((shares * _totalAssets), _totalSupply);
         }
     }
 
@@ -476,11 +527,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         lastProtocolFee = protocolConfig.protocolFee();
     }
 
-    function updateAccruedInterest() internal {
-        accruedInterest += unincludedInterest();
-        lastUpdateTime = block.timestamp;
-    }
-
     function isWithdrawAllowed(
         address sender,
         uint256 amount,
@@ -522,27 +568,43 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         }
     }
 
-    function accruedFee() public view returns (uint256) {
-        return _accruedFee(totalAssets());
+    function accruedFee() external view returns (uint256) {
+        return _accruedFee(_totalAssetsBeforeAccruedFee(totalDebt()));
     }
 
     function _accruedFee(uint256 _totalAssets) internal view returns (uint256) {
-        return ((block.timestamp - lastUpdateTime) * lastProtocolFee * _totalAssets) / YEAR / BASIS_PRECISION;
+        uint256 calculatedFee = ((block.timestamp - lastUpdateTime) * lastProtocolFee * _totalAssets) / YEAR / BASIS_PRECISION;
+        if (calculatedFee > _totalAssets) {
+            return _totalAssets;
+        } else {
+            return calculatedFee;
+        }
     }
 
     function min(uint256 a, uint256 b) internal pure returns (uint256) {
         return a < b ? a : b;
     }
 
-    function _totalAssets(uint256 debt) internal view returns (uint256) {
-        return virtualTokenBalance + debt;
+    function _totalAssetsBeforeAccruedFee(uint256 debt) internal view returns (uint256) {
+        uint256 assetsBeforeFee = virtualTokenBalance + debt;
+        return unpaidFee > assetsBeforeFee ? 0 : assetsBeforeFee - unpaidFee;
+    }
+
+    function getTotalAssetsAndFee(uint256 debt) internal view returns (uint256, uint256) {
+        uint256 assetsBeforeFee = _totalAssetsBeforeAccruedFee(debt);
+        uint256 fee = _accruedFee(assetsBeforeFee);
+        if (fee > assetsBeforeFee) {
+            return (0, fee + unpaidFee);
+        } else {
+            return (assetsBeforeFee - fee, fee + unpaidFee);
+        }
     }
 
     function _utilization(uint256 debt) internal view returns (uint256) {
         if (debt == 0) {
             return 0;
         }
-        return (debt * BASIS_PRECISION) / _totalAssets(debt);
+        return (debt * BASIS_PRECISION) / _totalAssetsBeforeAccruedFee(debt);
     }
 
     function _transfer(
