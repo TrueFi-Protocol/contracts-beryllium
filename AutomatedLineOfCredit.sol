@@ -34,7 +34,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     uint256 public accruedInterest;
     uint256 public lastProtocolFee;
     uint256 public unpaidFee;
-    uint256 private lastUpdateTime;
+    uint256 internal lastUpdateTime;
 
     IDepositStrategy public depositStrategy;
     IWithdrawStrategy public withdrawStrategy;

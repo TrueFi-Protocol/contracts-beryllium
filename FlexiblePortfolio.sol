@@ -22,17 +22,20 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     using SafeERC20 for IERC20WithDecimals;
     using Address for address;
 
+    uint256 internal constant YEAR = 365 days;
+    uint256 public constant BASIS_PRECISION = 10000;
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     IERC20WithDecimals public asset;
     uint8 internal _decimals;
     uint256 public endDate;
     uint256 public maxSize;
-    uint256 public lastProtocolFee;
     IProtocolConfig public protocolConfig;
     mapping(IDebtInstrument => bool) public isInstrumentAllowed;
 
     uint256 public virtualTokenBalance;
+    uint256 public lastProtocolFee;
+    uint256 internal lastUpdateTime;
 
     IValuationStrategy public valuationStrategy;
     IDepositStrategy public depositStrategy;
@@ -111,7 +114,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function allowInstrument(IDebtInstrument instrument, bool isAllowed) external onlyRole(MANAGER_ROLE) {
         isInstrumentAllowed[instrument] = isAllowed;
-
         emit AllowedInstrumentChanged(instrument, isAllowed);
     }
 
@@ -147,6 +149,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         asset.safeTransfer(borrower, principalAmount);
         virtualTokenBalance -= principalAmount;
 
+        lastUpdateTime = block.timestamp;
         updateLastProtocolFee();
         emit InstrumentFunded(instrument, instrumentId);
     }
@@ -182,6 +185,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         virtualTokenBalance += assets;
         asset.safeTransferFrom(msg.sender, address(this), assets);
 
+        lastUpdateTime = block.timestamp;
         updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
         return sharesToMint;
@@ -199,6 +203,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         virtualTokenBalance += assets;
         asset.safeTransferFrom(msg.sender, address(this), assets);
 
+        lastUpdateTime = block.timestamp;
         updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
@@ -230,6 +235,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, redeemedAssets);
 
+        lastUpdateTime = block.timestamp;
         updateLastProtocolFee();
         emit Withdraw(msg.sender, receiver, owner, redeemedAssets, shares);
         return redeemedAssets;
@@ -269,6 +275,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         instrument.asset(instrumentId).safeTransferFrom(msg.sender, address(this), amount);
         virtualTokenBalance += amount;
+        lastUpdateTime = block.timestamp;
         updateLastProtocolFee();
         emit InstrumentRepaid(instrument, instrumentId, amount);
     }
@@ -458,6 +465,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
 
+        lastUpdateTime = block.timestamp;
         updateLastProtocolFee();
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return shares;
@@ -465,6 +473,19 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function updateLastProtocolFee() internal {
         lastProtocolFee = protocolConfig.protocolFee();
+    }
+
+    function accruedFee() external view returns (uint256) {
+        return _accruedFee(totalAssets());
+    }
+
+    function _accruedFee(uint256 _totalAssets) internal view returns (uint256) {
+        uint256 calculatedFee = ((block.timestamp - lastUpdateTime) * lastProtocolFee * _totalAssets) / YEAR / BASIS_PRECISION;
+        if (calculatedFee > _totalAssets) {
+            return _totalAssets;
+        } else {
+            return calculatedFee;
+        }
     }
 
     function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(MANAGER_ROLE) {
