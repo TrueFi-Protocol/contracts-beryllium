@@ -5,9 +5,9 @@ import {IFlexiblePortfolio} from "./interfaces/IFlexiblePortfolio.sol";
 import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
 import {IDebtInstrument} from "./interfaces/IDebtInstrument.sol";
 import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
-import {BasePortfolioFactory} from "./BasePortfolioFactory.sol";
+import {PortfolioFactory} from "./PortfolioFactory.sol";
 
-contract FlexiblePortfolioFactory is BasePortfolioFactory {
+contract FlexiblePortfolioFactory is PortfolioFactory {
     function createPortfolio(
         IERC20WithDecimals _asset,
         uint256 _duration,

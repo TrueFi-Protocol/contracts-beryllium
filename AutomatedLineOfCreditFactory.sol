@@ -3,9 +3,9 @@ pragma solidity ^0.8.10;
 
 import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
 import {IAutomatedLineOfCredit} from "./interfaces/IAutomatedLineOfCredit.sol";
-import {BasePortfolioFactory} from "./BasePortfolioFactory.sol";
+import {PortfolioFactory} from "./PortfolioFactory.sol";
 
-contract AutomatedLineOfCreditFactory is BasePortfolioFactory {
+contract AutomatedLineOfCreditFactory is PortfolioFactory {
     function createPortfolio(
         uint256 _duration,
         IERC20WithDecimals _asset,

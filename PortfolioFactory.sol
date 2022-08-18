@@ -6,7 +6,7 @@ import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {ProxyWrapper} from "./proxy/ProxyWrapper.sol";
 import {Upgradeable} from "./access/Upgradeable.sol";
 
-abstract contract BasePortfolioFactory is Upgradeable {
+abstract contract PortfolioFactory is Upgradeable {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     address public portfolioImplementation;
@@ -23,10 +23,7 @@ abstract contract BasePortfolioFactory is Upgradeable {
     }
 
     function setPortfolioImplementation(address newImplementation) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(
-            portfolioImplementation != newImplementation,
-            "BasePortfolioFactory: New portfolio implementation needs to be different"
-        );
+        require(portfolioImplementation != newImplementation, "PortfolioFactory: New portfolio implementation needs to be different");
         portfolioImplementation = newImplementation;
         emit PortfolioImplementationChanged(newImplementation);
     }
