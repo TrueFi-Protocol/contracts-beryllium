@@ -170,11 +170,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
      */
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
         require(isDepositAllowed(msg.sender, assets, receiver), "FlexiblePortfolio: Deposit not allowed");
-        require(assets + totalAssets() <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
+        uint256 _totalAssets = totalAssets();
+        require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
 
-        uint256 sharesToMint = convertToShares(assets);
+        uint256 sharesToMint = _convertToShares(assets, _totalAssets);
         require(sharesToMint > 0, "FlexiblePortfolio: Cannot mint 0 shares");
 
         _mint(receiver, sharesToMint);
@@ -188,9 +189,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function mint(uint256 shares, address receiver) public whenNotPaused returns (uint256) {
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be mint receiver");
-        uint256 assets = totalSupply() == 0 ? shares : convertToAssetsRoundUp(shares);
+        uint256 _totalAssets = totalAssets();
+        uint256 assets = _previewMint(shares, _totalAssets);
         require(isDepositAllowed(msg.sender, assets, receiver), "FlexiblePortfolio: Sender not allowed to mint");
-        require(assets + totalAssets() <= maxSize, "FlexiblePortfolio: Portfolio is full");
+        require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Portfolio is full");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
 
         _mint(receiver, shares);
@@ -203,8 +205,15 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
-        uint256 assets = totalSupply() == 0 ? shares : convertToAssetsRoundUp(shares);
-        return assets;
+        return _previewMint(shares, totalAssets());
+    }
+
+    function _previewMint(uint256 shares, uint256 _totalAssets) internal view returns (uint256) {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply == 0) {
+            return shares;
+        }
+        return Math.ceilDiv(shares * _totalAssets, _totalSupply);
     }
 
     function redeem(
@@ -212,7 +221,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) public virtual whenNotPaused returns (uint256) {
-        uint256 redeemedAssets = convertToAssets(shares);
+        uint256 _totalAssets = totalAssets();
+        uint256 redeemedAssets = _convertToAssets(shares, _totalAssets);
         require(isWithdrawAllowed(msg.sender, redeemedAssets, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
         require(redeemedAssets <= virtualTokenBalance, "FlexiblePortfolio: Amount exceeds pool balance");
 
@@ -279,19 +289,15 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function convertToAssets(uint256 sharesAmount) public view returns (uint256) {
-        uint256 _totalSupply = totalSupply();
-        if (_totalSupply == 0) {
-            return 0;
-        }
-        return (sharesAmount * totalAssets()) / _totalSupply;
+        return _convertToAssets(sharesAmount, totalAssets());
     }
 
-    function convertToAssetsRoundUp(uint256 sharesAmount) internal view returns (uint256) {
+    function _convertToAssets(uint256 sharesAmount, uint256 _totalAssets) internal view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return 0;
         }
-        return Math.ceilDiv(sharesAmount * totalAssets(), _totalSupply);
+        return (sharesAmount * _totalAssets) / _totalSupply;
     }
 
     function totalAssets() public view override returns (uint256) {
@@ -302,14 +308,17 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
-        uint256 __totalAssets = totalAssets();
+        return _convertToShares(assets, totalAssets());
+    }
+
+    function _convertToShares(uint256 assets, uint256 _totalAssets) internal view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return assets;
-        } else if (__totalAssets == 0) {
+        } else if (_totalAssets == 0) {
             return 0;
         } else {
-            return (assets * _totalSupply) / __totalAssets;
+            return (assets * _totalSupply) / _totalAssets;
         }
     }
 
@@ -420,17 +429,16 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         _burn(owner, shares);
     }
 
-    function _convertToSharesRoundUp(uint256 assets) internal view returns (uint256) {
-        uint256 __totalAssets = totalAssets();
-        if (__totalAssets == 0) {
-            return 0;
-        } else {
-            return Math.ceilDiv(assets * totalSupply(), __totalAssets);
-        }
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
+        return _previewWithdraw(assets, totalAssets());
     }
 
-    function previewWithdraw(uint256 assets) public view returns (uint256) {
-        return _convertToSharesRoundUp(assets);
+    function _previewWithdraw(uint256 assets, uint256 _totalAssets) internal view returns (uint256) {
+        if (_totalAssets == 0) {
+            return 0;
+        } else {
+            return Math.ceilDiv(assets * totalSupply(), _totalAssets);
+        }
     }
 
     function withdraw(
@@ -438,7 +446,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) public whenNotPaused returns (uint256) {
-        uint256 shares = _convertToSharesRoundUp(assets);
+        uint256 _totalAssets = totalAssets();
+        uint256 shares = _previewWithdraw(assets, _totalAssets);
         require(isWithdrawAllowed(msg.sender, shares, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
         require(receiver != address(this), "FlexiblePortfolio: Cannot withdraw to pool");
         require(owner != address(this), "FlexiblePortfolio: Cannot withdraw from pool");
