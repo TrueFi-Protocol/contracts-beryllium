@@ -192,18 +192,16 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function mint(uint256 shares, address receiver) public whenNotPaused returns (uint256) {
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be mint receiver");
-        uint256 _totalAssets = totalAssets();
+        (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
         uint256 assets = _previewMint(shares, _totalAssets);
         require(isDepositAllowed(msg.sender, assets, receiver), "FlexiblePortfolio: Sender not allowed to mint");
         require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Portfolio is full");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
 
         _mint(receiver, shares);
-        virtualTokenBalance += assets;
         asset.safeTransferFrom(msg.sender, address(this), assets);
+        payFeeAndUpdate(_fee, virtualTokenBalance + assets);
 
-        lastUpdateTime = block.timestamp;
-        updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
     }
