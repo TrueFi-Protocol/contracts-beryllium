@@ -56,6 +56,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
     event TransferStrategyChanged(ITransferStrategy indexed oldStrategy, ITransferStrategy indexed newStrategy);
 
+    event FeePaid(address indexed protocolAddress, uint256 amount);
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
@@ -173,7 +174,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
      */
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
         require(isDepositAllowed(msg.sender, assets, receiver), "FlexiblePortfolio: Deposit not allowed");
-        uint256 _totalAssets = totalAssets();
+        (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
         require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
@@ -182,11 +183,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         require(sharesToMint > 0, "FlexiblePortfolio: Cannot mint 0 shares");
 
         _mint(receiver, sharesToMint);
-        virtualTokenBalance += assets;
         asset.safeTransferFrom(msg.sender, address(this), assets);
+        payFeeAndUpdate(_fee, virtualTokenBalance + assets);
 
-        lastUpdateTime = block.timestamp;
-        updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
         return sharesToMint;
     }
@@ -289,6 +288,26 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return IERC721Receiver.onERC721Received.selector;
     }
 
+    function payFeeAndUpdate(uint256 _fee, uint256 totalBalance) internal {
+        uint256 _feePaid = payFee(_fee, totalBalance);
+        virtualTokenBalance = totalBalance - _feePaid;
+        lastUpdateTime = block.timestamp;
+        updateLastProtocolFee();
+    }
+
+    function payFee(uint256 _fee, uint256 balance) internal returns (uint256) {
+        uint256 feeToPay;
+        if (balance < _fee) {
+            feeToPay = balance;
+        } else {
+            feeToPay = _fee;
+        }
+        address protocolAddress = protocolConfig.protocolAddress();
+        asset.safeTransfer(protocolAddress, feeToPay);
+        emit FeePaid(protocolAddress, feeToPay);
+        return feeToPay;
+    }
+
     function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(MANAGER_ROLE) {
         require(_valuationStrategy != valuationStrategy, "FlexiblePortfolio: New valuation strategy needs to be different");
         valuationStrategy = _valuationStrategy;
@@ -312,6 +331,13 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
             return 0;
         }
         return virtualTokenBalance + valuationStrategy.calculateValue(this);
+    }
+
+    function getTotalAssetsAndFee() internal view returns (uint256, uint256) {
+        uint256 _totalAssets = totalAssets();
+        uint256 __accruedFee = _accruedFee(_totalAssets);
+        uint256 totalAssetsAfterFee = _totalAssets < __accruedFee ? 0 : _totalAssets - __accruedFee;
+        return (totalAssetsAfterFee, __accruedFee);
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
