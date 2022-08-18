@@ -28,6 +28,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     uint8 internal _decimals;
     uint256 public endDate;
     uint256 public maxSize;
+    uint256 public lastProtocolFee;
     IProtocolConfig public protocolConfig;
     mapping(IDebtInstrument => bool) public isInstrumentAllowed;
 
@@ -145,6 +146,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
         asset.safeTransfer(borrower, principalAmount);
         virtualTokenBalance -= principalAmount;
+
+        updateLastProtocolFee();
         emit InstrumentFunded(instrument, instrumentId);
     }
 
@@ -178,6 +181,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         virtualTokenBalance += assets;
         asset.safeTransferFrom(msg.sender, address(this), assets);
 
+        updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
         return sharesToMint;
     }
@@ -193,6 +197,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         virtualTokenBalance += assets;
         asset.safeTransferFrom(msg.sender, address(this), assets);
 
+        updateLastProtocolFee();
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
     }
@@ -214,6 +219,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         virtualTokenBalance -= redeemedAssets;
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, redeemedAssets);
+
+        updateLastProtocolFee();
         emit Withdraw(msg.sender, receiver, owner, redeemedAssets, shares);
         return redeemedAssets;
     }
@@ -252,6 +259,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         instrument.asset(instrumentId).safeTransferFrom(msg.sender, address(this), amount);
         virtualTokenBalance += amount;
+        updateLastProtocolFee();
         emit InstrumentRepaid(instrument, instrumentId, amount);
     }
 
@@ -441,8 +449,13 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
 
+        updateLastProtocolFee();
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return shares;
+    }
+
+    function updateLastProtocolFee() internal {
+        lastProtocolFee = protocolConfig.protocolFee();
     }
 
     function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(MANAGER_ROLE) {
