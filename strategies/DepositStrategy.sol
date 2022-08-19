@@ -4,11 +4,11 @@ pragma solidity ^0.8.10;
 import {IDepositStrategy} from "../interfaces/IDepositStrategy.sol";
 
 contract DepositStrategy is IDepositStrategy {
-    function isDepositAllowed(
+    function onDeposit(
         address,
         uint256,
         address
-    ) external pure returns (bool) {
+    ) external returns (bool) {
         return true;
     }
 

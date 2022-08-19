@@ -204,7 +204,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     function deposit(uint256 assets, address receiver) public whenNotPaused returns (uint256) {
         require(receiver != address(this), "AutomatedLineOfCredit: Pool cannot be deposit receiver");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
-        require(isDepositAllowed(msg.sender, assets, receiver), "AutomatedLineOfCredit: Deposit not allowed");
+        require(onDeposit(msg.sender, assets, receiver), "AutomatedLineOfCredit: Deposit not allowed");
 
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
         uint256 sharesToMint = _convertToShares(assets, _totalAssets);
@@ -290,7 +290,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
         uint256 assets = _previewMint(shares, _totalAssets);
-        require(isDepositAllowed(msg.sender, assets, receiver), "AutomatedLineOfCredit: Sender not allowed to mint");
+        require(onDeposit(msg.sender, assets, receiver), "AutomatedLineOfCredit: Sender not allowed to mint");
         require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Mint would cause pool to exceed max size");
 
         asset.safeTransferFrom(msg.sender, address(this), assets);
@@ -548,13 +548,13 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         }
     }
 
-    function isDepositAllowed(
+    function onDeposit(
         address sender,
         uint256 assets,
         address receiver
-    ) internal view returns (bool) {
+    ) internal returns (bool) {
         if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.isDepositAllowed(sender, assets, receiver);
+            return depositStrategy.onDeposit(sender, assets, receiver);
         } else {
             return true;
         }
