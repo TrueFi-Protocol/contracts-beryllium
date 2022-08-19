@@ -225,7 +225,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) public virtual whenNotPaused returns (uint256) {
         uint256 _totalAssets = totalAssets();
         uint256 redeemedAssets = _convertToAssets(shares, _totalAssets);
-        require(isWithdrawAllowed(msg.sender, redeemedAssets, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
+        require(onWithdraw(msg.sender, redeemedAssets, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
         require(redeemedAssets <= virtualTokenBalance, "FlexiblePortfolio: Amount exceeds pool balance");
 
         virtualTokenBalance -= redeemedAssets;
@@ -410,14 +410,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         }
     }
 
-    function isWithdrawAllowed(
+    function onWithdraw(
         address sender,
         uint256 amount,
         address receiver,
         address owner
-    ) internal view returns (bool) {
+    ) internal returns (bool) {
         if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.isWithdrawAllowed(sender, amount, receiver, owner);
+            return withdrawStrategy.onWithdraw(sender, amount, receiver, owner);
         } else {
             return true;
         }
@@ -479,7 +479,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) public whenNotPaused returns (uint256) {
         uint256 _totalAssets = totalAssets();
         uint256 shares = _previewWithdraw(assets, _totalAssets);
-        require(isWithdrawAllowed(msg.sender, shares, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
+        require(onWithdraw(msg.sender, shares, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
         require(receiver != address(this), "FlexiblePortfolio: Cannot withdraw to pool");
         require(owner != address(this), "FlexiblePortfolio: Cannot withdraw from pool");
         require(assets > 0, "FlexiblePortfolio: Cannot withdraw 0 assets");

@@ -233,7 +233,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         uint256 assetAmount = _convertToAssets(shares, _totalAssets);
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
         require(assetAmount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Redeemed assets exceed pool balance");
-        require(isWithdrawAllowed(msg.sender, assetAmount, receiver, owner), "AutomatedLineOfCredit: Sender not allowed to redeem");
+        require(onWithdraw(msg.sender, assetAmount, receiver, owner), "AutomatedLineOfCredit: Sender not allowed to redeem");
 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assetAmount);
@@ -271,7 +271,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         uint256 shares = _previewWithdraw(assets, _totalAssets);
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
         require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds pool liquidity");
-        require(isWithdrawAllowed(msg.sender, shares, receiver, owner), "AutomatedLineOfCredit: Withdraw not allowed");
+        require(onWithdraw(msg.sender, shares, receiver, owner), "AutomatedLineOfCredit: Withdraw not allowed");
 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
@@ -527,14 +527,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         lastProtocolFee = protocolConfig.protocolFee();
     }
 
-    function isWithdrawAllowed(
+    function onWithdraw(
         address sender,
         uint256 amount,
         address receiver,
         address owner
-    ) internal view returns (bool) {
+    ) internal returns (bool) {
         if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.isWithdrawAllowed(sender, amount, receiver, owner);
+            return withdrawStrategy.onWithdraw(sender, amount, receiver, owner);
         } else {
             return true;
         }
