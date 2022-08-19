@@ -174,7 +174,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
-        require(onDeposit(msg.sender, assets, receiver), "FlexiblePortfolio: Deposit not allowed");
+        (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
+        require(depositAllowed, "FlexiblePortfolio: Deposit not allowed");
         (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
         require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
@@ -195,7 +196,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be mint receiver");
         (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
         uint256 assets = _previewMint(shares, _totalAssets);
-        require(onDeposit(msg.sender, assets, receiver), "FlexiblePortfolio: Sender not allowed to mint");
+        (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
+        require(depositAllowed, "FlexiblePortfolio: Sender not allowed to mint");
         require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Portfolio is full");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
 
@@ -428,11 +430,11 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address sender,
         uint256 assets,
         address receiver
-    ) internal returns (bool) {
+    ) internal returns (bool, uint256) {
         if (address(depositStrategy) != address(0x00)) {
             return depositStrategy.onDeposit(sender, assets, receiver);
         } else {
-            return true;
+            return (true, 0);
         }
     }
 

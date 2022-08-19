@@ -8,8 +8,8 @@ contract DepositStrategy is IDepositStrategy {
         address,
         uint256,
         address
-    ) external returns (bool) {
-        return true;
+    ) external pure returns (bool, uint256) {
+        return (true, 0);
     }
 
     function maxDeposit(address) external pure returns (uint256) {

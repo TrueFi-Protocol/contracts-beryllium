@@ -6,7 +6,7 @@ interface IDepositStrategy {
         address sender,
         uint256 amount,
         address receiver
-    ) external returns (bool);
+    ) external returns (bool, uint256);
 
     function maxDeposit(address sender) external view returns (uint256);
 }
