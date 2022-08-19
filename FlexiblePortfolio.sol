@@ -140,7 +140,11 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         require(isInstrumentAdded[instrument][instrumentId], "FlexiblePortfolio: Instrument is not added");
         address borrower = instrument.recipient(instrumentId);
         uint256 principalAmount = instrument.principal(instrumentId);
-        require(principalAmount <= virtualTokenBalance, "FlexiblePortfolio: Insufficient funds in portfolio to fund loan");
+        (, uint256 _fee) = getTotalAssetsAndFee();
+        require(
+            _fee < virtualTokenBalance && principalAmount <= virtualTokenBalance - _fee,
+            "FlexiblePortfolio: Insufficient funds in portfolio to fund loan"
+        );
         instrument.start(instrumentId);
         require(
             instrument.endDate(instrumentId) <= endDate,
@@ -148,10 +152,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         );
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
         asset.safeTransfer(borrower, principalAmount);
-        virtualTokenBalance -= principalAmount;
-
-        lastUpdateTime = block.timestamp;
-        updateLastProtocolFee();
+        payFeeAndUpdate(_fee, virtualTokenBalance - principalAmount);
         emit InstrumentFunded(instrument, instrumentId);
     }
 
