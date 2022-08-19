@@ -269,13 +269,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) external whenNotPaused {
         require(amount > 0, "FlexiblePortfolio: Repayment amount must be greater than 0");
         require(instrument.recipient(instrumentId) == msg.sender, "FlexiblePortfolio: Not an instrument recipient");
+        (, uint256 _fee) = getTotalAssetsAndFee();
         instrument.repay(instrumentId, amount);
         valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
 
         instrument.asset(instrumentId).safeTransferFrom(msg.sender, address(this), amount);
-        virtualTokenBalance += amount;
-        lastUpdateTime = block.timestamp;
-        updateLastProtocolFee();
+        payFeeAndUpdate(_fee, virtualTokenBalance + amount);
         emit InstrumentRepaid(instrument, instrumentId, amount);
     }
 
