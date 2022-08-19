@@ -224,17 +224,18 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) public virtual whenNotPaused returns (uint256) {
-        uint256 _totalAssets = totalAssets();
+        (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
         uint256 redeemedAssets = _convertToAssets(shares, _totalAssets);
         require(onWithdraw(msg.sender, redeemedAssets, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
-        require(redeemedAssets <= virtualTokenBalance, "FlexiblePortfolio: Amount exceeds pool balance");
+        require(
+            _fee < virtualTokenBalance && redeemedAssets <= virtualTokenBalance - _fee,
+            "FlexiblePortfolio: Amount exceeds pool balance"
+        );
 
-        virtualTokenBalance -= redeemedAssets;
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, redeemedAssets);
+        payFeeAndUpdate(_fee, virtualTokenBalance - redeemedAssets);
 
-        lastUpdateTime = block.timestamp;
-        updateLastProtocolFee();
         emit Withdraw(msg.sender, receiver, owner, redeemedAssets, shares);
         return redeemedAssets;
     }
