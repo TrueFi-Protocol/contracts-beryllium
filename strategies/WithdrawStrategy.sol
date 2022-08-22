@@ -13,7 +13,7 @@ contract WithdrawStrategy is IWithdrawStrategy {
         uint256,
         address,
         address
-    ) external pure returns (bool) {
-        return true;
+    ) external pure returns (bool, uint256) {
+        return (true, 0);
     }
 }

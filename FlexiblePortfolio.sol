@@ -228,7 +228,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) public virtual whenNotPaused returns (uint256) {
         (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
         uint256 redeemedAssets = _convertToAssets(shares, _totalAssets);
-        require(onWithdraw(msg.sender, redeemedAssets, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
+        (bool withdrawAllowed, ) = onWithdraw(msg.sender, redeemedAssets, receiver, owner);
+        require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
         require(
             _fee < virtualTokenBalance && redeemedAssets <= virtualTokenBalance - _fee,
             "FlexiblePortfolio: Amount exceeds pool balance"
@@ -423,11 +424,11 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 amount,
         address receiver,
         address owner
-    ) internal returns (bool) {
+    ) internal returns (bool, uint256) {
         if (address(withdrawStrategy) != address(0x00)) {
             return withdrawStrategy.onWithdraw(sender, amount, receiver, owner);
         } else {
-            return true;
+            return (true, 0);
         }
     }
 
@@ -487,7 +488,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) public whenNotPaused returns (uint256) {
         (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
         uint256 shares = _previewWithdraw(assets, _totalAssets);
-        require(onWithdraw(msg.sender, shares, receiver, owner), "FlexiblePortfolio: Withdraw not allowed");
+        (bool withdrawAllowed, ) = onWithdraw(msg.sender, assets, receiver, owner);
+        require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
         require(receiver != address(this), "FlexiblePortfolio: Cannot withdraw to pool");
         require(owner != address(this), "FlexiblePortfolio: Cannot withdraw from pool");
         require(assets > 0, "FlexiblePortfolio: Cannot withdraw 0 assets");

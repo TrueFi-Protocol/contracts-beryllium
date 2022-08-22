@@ -234,7 +234,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         uint256 assetAmount = _convertToAssets(shares, _totalAssets);
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
         require(assetAmount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Redeemed assets exceed pool balance");
-        require(onWithdraw(msg.sender, assetAmount, receiver, owner), "AutomatedLineOfCredit: Sender not allowed to redeem");
+        (bool withdrawAllowed, ) = onWithdraw(msg.sender, assetAmount, receiver, owner);
+        require(withdrawAllowed, "AutomatedLineOfCredit: Redeem not allowed");
 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assetAmount);
@@ -272,7 +273,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         uint256 shares = _previewWithdraw(assets, _totalAssets);
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
         require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds pool liquidity");
-        require(onWithdraw(msg.sender, shares, receiver, owner), "AutomatedLineOfCredit: Withdraw not allowed");
+        (bool withdrawAllowed, ) = onWithdraw(msg.sender, assets, receiver, owner);
+        require(withdrawAllowed, "AutomatedLineOfCredit: Withdraw not allowed");
 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
@@ -534,11 +536,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         uint256 amount,
         address receiver,
         address owner
-    ) internal returns (bool) {
+    ) internal returns (bool, uint256) {
         if (address(withdrawStrategy) != address(0x00)) {
             return withdrawStrategy.onWithdraw(sender, amount, receiver, owner);
         } else {
-            return true;
+            return (true, 0);
         }
     }
 

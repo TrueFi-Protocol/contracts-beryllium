@@ -9,5 +9,5 @@ interface IWithdrawStrategy {
         uint256 amount,
         address receiver,
         address owner
-    ) external returns (bool);
+    ) external returns (bool, uint256);
 }
