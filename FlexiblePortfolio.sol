@@ -152,7 +152,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         );
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
         asset.safeTransfer(borrower, principalAmount);
-        payFeeAndUpdate(_fee, virtualTokenBalance - principalAmount);
+        _payFeeAndUpdate(_fee, virtualTokenBalance - principalAmount);
         emit InstrumentFunded(instrument, instrumentId);
     }
 
@@ -186,7 +186,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _mint(receiver, sharesToMint);
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        payFeeAndUpdate(_fee, virtualTokenBalance + assets);
+        _payFeeAndUpdate(_fee, virtualTokenBalance + assets);
 
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
         return sharesToMint;
@@ -203,7 +203,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _mint(receiver, shares);
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        payFeeAndUpdate(_fee, virtualTokenBalance + assets);
+        _payFeeAndUpdate(_fee, virtualTokenBalance + assets);
 
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
@@ -236,7 +236,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, redeemedAssets);
-        payFeeAndUpdate(_fee, virtualTokenBalance - redeemedAssets);
+        _payFeeAndUpdate(_fee, virtualTokenBalance - redeemedAssets);
 
         emit Withdraw(msg.sender, receiver, owner, redeemedAssets, shares);
         return redeemedAssets;
@@ -276,7 +276,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
 
         instrument.asset(instrumentId).safeTransferFrom(msg.sender, address(this), amount);
-        payFeeAndUpdate(_fee, virtualTokenBalance + amount);
+        _payFeeAndUpdate(_fee, virtualTokenBalance + amount);
         emit InstrumentRepaid(instrument, instrumentId, amount);
     }
 
@@ -289,7 +289,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return IERC721Receiver.onERC721Received.selector;
     }
 
-    function payFeeAndUpdate(uint256 _fee, uint256 totalBalance) internal {
+    function payFeeAndUpdate() external {
+        (, uint256 _fee) = getTotalAssetsAndFee();
+        _payFeeAndUpdate(_fee, virtualTokenBalance);
+    }
+
+    function _payFeeAndUpdate(uint256 _fee, uint256 totalBalance) internal {
         uint256 _feePaid = payFee(_fee, totalBalance);
         virtualTokenBalance = totalBalance - _feePaid;
         lastUpdateTime = block.timestamp;
@@ -489,7 +494,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         require(_fee < virtualTokenBalance && assets <= virtualTokenBalance - _fee, "FlexiblePortfolio: Amount exceeds pool balance");
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
-        payFeeAndUpdate(_fee, virtualTokenBalance - assets);
+        _payFeeAndUpdate(_fee, virtualTokenBalance - assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return shares;
