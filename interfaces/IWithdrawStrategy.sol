@@ -10,4 +10,11 @@ interface IWithdrawStrategy {
         address receiver,
         address owner
     ) external returns (bool, uint256);
+
+    function onRedeem(
+        address sender,
+        uint256 amount,
+        address receiver,
+        address owner
+    ) external returns (bool, uint256);
 }

@@ -16,4 +16,13 @@ contract WithdrawStrategy is IWithdrawStrategy {
     ) external pure returns (bool, uint256) {
         return (true, 0);
     }
+
+    function onRedeem(
+        address,
+        uint256,
+        address,
+        address
+    ) external pure returns (bool, uint256) {
+        return (true, 0);
+    }
 }

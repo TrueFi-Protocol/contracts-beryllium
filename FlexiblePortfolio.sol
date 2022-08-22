@@ -233,7 +233,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) public virtual whenNotPaused returns (uint256) {
         (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
         uint256 redeemedAssets = _convertToAssets(shares, _totalAssets);
-        (bool withdrawAllowed, ) = onWithdraw(msg.sender, redeemedAssets, receiver, owner);
+        (bool withdrawAllowed, ) = onRedeem(msg.sender, redeemedAssets, receiver, owner);
         require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
         require(
             _fee < virtualTokenBalance && redeemedAssets <= virtualTokenBalance - _fee,
@@ -443,6 +443,19 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) internal returns (bool, uint256) {
         if (address(withdrawStrategy) != address(0x00)) {
             return withdrawStrategy.onWithdraw(sender, amount, receiver, owner);
+        } else {
+            return (true, 0);
+        }
+    }
+
+    function onRedeem(
+        address sender,
+        uint256 amount,
+        address receiver,
+        address owner
+    ) internal returns (bool, uint256) {
+        if (address(withdrawStrategy) != address(0x00)) {
+            return withdrawStrategy.onRedeem(sender, amount, receiver, owner);
         } else {
             return (true, 0);
         }
