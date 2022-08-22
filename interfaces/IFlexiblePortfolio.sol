@@ -8,6 +8,7 @@ import {IDepositStrategy} from "./IDepositStrategy.sol";
 import {IWithdrawStrategy} from "./IWithdrawStrategy.sol";
 import {IValuationStrategy} from "./IValuationStrategy.sol";
 import {ITransferStrategy} from "./ITransferStrategy.sol";
+import {IFeeStrategy} from "./IFeeStrategy.sol";
 import {IERC4626} from "./IERC4626.sol";
 
 interface IFlexiblePortfolio is IERC4626 {
@@ -21,6 +22,7 @@ interface IFlexiblePortfolio is IERC4626 {
         IWithdrawStrategy withdrawStrategy;
         ITransferStrategy transferStrategy;
         IValuationStrategy valuationStrategy;
+        IFeeStrategy feeStrategy;
     }
 
     function initialize(

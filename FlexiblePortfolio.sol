@@ -16,6 +16,7 @@ import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
 import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
 import {IDepositStrategy} from "./interfaces/IDepositStrategy.sol";
 import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
+import {IFeeStrategy} from "./interfaces/IFeeStrategy.sol";
 import {Upgradeable} from "./access/Upgradeable.sol";
 
 contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable {
@@ -42,6 +43,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     IDepositStrategy public depositStrategy;
     IWithdrawStrategy public withdrawStrategy;
     ITransferStrategy public transferStrategy;
+    IFeeStrategy public feeStrategy;
 
     mapping(IDebtInstrument => mapping(uint256 => bool)) public isInstrumentAdded;
 
@@ -56,6 +58,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     event DepositStrategyChanged(IDepositStrategy indexed oldStrategy, IDepositStrategy indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
     event TransferStrategyChanged(ITransferStrategy indexed oldStrategy, ITransferStrategy indexed newStrategy);
+    event FeeStrategyChanged(IFeeStrategy indexed oldStrategy, IFeeStrategy indexed newStrategy);
 
     event FeePaid(address indexed protocolAddress, uint256 amount);
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
@@ -83,6 +86,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         _setDepositStrategy(_strategies.depositStrategy);
         _setWithdrawStrategy(_strategies.withdrawStrategy);
         _setTransferStrategy(_strategies.transferStrategy);
+        _setFeeStrategy(_strategies.feeStrategy);
         valuationStrategy = _strategies.valuationStrategy;
 
         for (uint256 i; i < _allowedInstruments.length; i++) {
@@ -539,6 +543,16 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     function _setTransferStrategy(ITransferStrategy _transferStrategy) internal {
         emit TransferStrategyChanged(transferStrategy, _transferStrategy);
         transferStrategy = _transferStrategy;
+    }
+
+    function setFeeStrategy(IFeeStrategy _feeStrategy) public onlyRole(MANAGER_ROLE) {
+        require(_feeStrategy != feeStrategy, "FlexiblePortfolio: New fee strategy needs to be different");
+        _setFeeStrategy(_feeStrategy);
+    }
+
+    function _setFeeStrategy(IFeeStrategy _feeStrategy) internal {
+        emit FeeStrategyChanged(feeStrategy, _feeStrategy);
+        feeStrategy = _feeStrategy;
     }
 
     function _transfer(
