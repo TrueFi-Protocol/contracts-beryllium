@@ -336,16 +336,21 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return (sharesAmount * _totalAssets) / _totalSupply;
     }
 
-    function totalAssets() public view override returns (uint256) {
+    function totalAssetsBeforeAccruedFee() internal view returns (uint256) {
         if (address(valuationStrategy) == address(0)) {
             return 0;
         }
-        return virtualTokenBalance + valuationStrategy.calculateValue(this);
+        uint256 _totalAssets = virtualTokenBalance + valuationStrategy.calculateValue(this);
+        return unpaidProtocolfee > _totalAssets ? 0 : _totalAssets - unpaidProtocolfee;
+    }
+
+    function totalAssets() public view override returns (uint256) {
+        (uint256 _totalAssets, ) = getTotalAssetsAndFee();
+        return _totalAssets;
     }
 
     function getTotalAssetsAndFee() internal view returns (uint256, uint256) {
-        uint256 _totalAssets = totalAssets();
-        uint256 assetsBeforeFee = unpaidProtocolfee > _totalAssets ? 0 : _totalAssets - unpaidProtocolfee;
+        uint256 assetsBeforeFee = totalAssetsBeforeAccruedFee();
         uint256 __accruedFee = _accruedFee(assetsBeforeFee);
         if (__accruedFee > assetsBeforeFee) {
             return (0, __accruedFee + unpaidProtocolfee);
@@ -514,7 +519,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function accruedFee() external view returns (uint256) {
-        return _accruedFee(totalAssets());
+        return _accruedFee(totalAssetsBeforeAccruedFee());
     }
 
     function _accruedFee(uint256 _totalAssets) internal view returns (uint256) {
