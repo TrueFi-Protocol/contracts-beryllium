@@ -35,6 +35,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     uint256 public virtualTokenBalance;
     uint256 public lastProtocolFee;
+    uint256 public unpaidProtocolfee;
     uint256 internal lastUpdateTime;
 
     IValuationStrategy public valuationStrategy;
@@ -306,8 +307,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 feeToPay;
         if (balance < _fee) {
             feeToPay = balance;
+            unpaidProtocolfee = _fee - balance;
         } else {
             feeToPay = _fee;
+            unpaidProtocolfee = 0;
         }
         address protocolAddress = protocolConfig.protocolAddress();
         asset.safeTransfer(protocolAddress, feeToPay);
@@ -342,9 +345,13 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function getTotalAssetsAndFee() internal view returns (uint256, uint256) {
         uint256 _totalAssets = totalAssets();
-        uint256 __accruedFee = _accruedFee(_totalAssets);
-        uint256 totalAssetsAfterFee = _totalAssets < __accruedFee ? 0 : _totalAssets - __accruedFee;
-        return (totalAssetsAfterFee, __accruedFee);
+        uint256 assetsBeforeFee = unpaidProtocolfee > _totalAssets ? 0 : _totalAssets - unpaidProtocolfee;
+        uint256 __accruedFee = _accruedFee(assetsBeforeFee);
+        if (__accruedFee > assetsBeforeFee) {
+            return (0, __accruedFee + unpaidProtocolfee);
+        } else {
+            return (assetsBeforeFee - __accruedFee, __accruedFee + unpaidProtocolfee);
+        }
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
