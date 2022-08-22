@@ -36,7 +36,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     uint256 public virtualTokenBalance;
     uint256 public lastProtocolFee;
-    uint256 public unpaidProtocolfee;
+    uint256 public lastManagerFee;
+    uint256 public unpaidProtocolFee;
     uint256 internal lastUpdateTime;
 
     IValuationStrategy public valuationStrategy;
@@ -305,16 +306,17 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         virtualTokenBalance = totalBalance - _feePaid;
         lastUpdateTime = block.timestamp;
         updateLastProtocolFee();
+        updateLastManagerFee();
     }
 
     function payFee(uint256 _fee, uint256 balance) internal returns (uint256) {
         uint256 feeToPay;
         if (balance < _fee) {
             feeToPay = balance;
-            unpaidProtocolfee = _fee - balance;
+            unpaidProtocolFee = _fee - balance;
         } else {
             feeToPay = _fee;
-            unpaidProtocolfee = 0;
+            unpaidProtocolFee = 0;
         }
         address protocolAddress = protocolConfig.protocolAddress();
         asset.safeTransfer(protocolAddress, feeToPay);
@@ -345,7 +347,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
             return 0;
         }
         uint256 _totalAssets = virtualTokenBalance + valuationStrategy.calculateValue(this);
-        return unpaidProtocolfee > _totalAssets ? 0 : _totalAssets - unpaidProtocolfee;
+        return unpaidProtocolFee > _totalAssets ? 0 : _totalAssets - unpaidProtocolFee;
     }
 
     function totalAssets() public view override returns (uint256) {
@@ -357,9 +359,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 assetsBeforeFee = totalAssetsBeforeAccruedFee();
         uint256 __accruedFee = _accruedFee(assetsBeforeFee);
         if (__accruedFee > assetsBeforeFee) {
-            return (0, __accruedFee + unpaidProtocolfee);
+            return (0, __accruedFee + unpaidProtocolFee);
         } else {
-            return (assetsBeforeFee - __accruedFee, __accruedFee + unpaidProtocolfee);
+            return (assetsBeforeFee - __accruedFee, __accruedFee + unpaidProtocolFee);
         }
     }
 
@@ -533,6 +535,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function updateLastProtocolFee() internal {
         lastProtocolFee = protocolConfig.protocolFee();
+    }
+
+    function updateLastManagerFee() internal {
+        if (address(feeStrategy) != address(0x00)) {
+            lastManagerFee = feeStrategy.managerFee();
+        } else {
+            lastManagerFee = 0;
+        }
     }
 
     function accruedFee() external view returns (uint256) {
