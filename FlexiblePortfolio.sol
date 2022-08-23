@@ -146,9 +146,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         require(isInstrumentAdded[instrument][instrumentId], "FlexiblePortfolio: Instrument is not added");
         address borrower = instrument.recipient(instrumentId);
         uint256 principalAmount = instrument.principal(instrumentId);
-        (, uint256 _fee) = getTotalAssetsAndFee();
+        (, uint256 protocolFee, ) = getTotalAssetsAndFee();
         require(
-            _fee < virtualTokenBalance && principalAmount <= virtualTokenBalance - _fee,
+            protocolFee < virtualTokenBalance && principalAmount <= virtualTokenBalance - protocolFee,
             "FlexiblePortfolio: Insufficient funds in portfolio to fund loan"
         );
         instrument.start(instrumentId);
@@ -158,7 +158,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         );
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
         asset.safeTransfer(borrower, principalAmount);
-        _payFeeAndUpdate(_fee, virtualTokenBalance - principalAmount);
+        _payFeeAndUpdate(protocolFee, virtualTokenBalance - principalAmount);
         emit InstrumentFunded(instrument, instrumentId);
     }
 
@@ -182,7 +182,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
         (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
         require(depositAllowed, "FlexiblePortfolio: Deposit not allowed");
-        (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
+        (uint256 _totalAssets, uint256 protocolFee, ) = getTotalAssetsAndFee();
         require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
@@ -192,7 +192,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _mint(receiver, sharesToMint);
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        _payFeeAndUpdate(_fee, virtualTokenBalance + assets);
+        _payFeeAndUpdate(protocolFee, virtualTokenBalance + assets);
 
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
         return sharesToMint;
@@ -200,7 +200,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function mint(uint256 shares, address receiver) public whenNotPaused returns (uint256) {
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be mint receiver");
-        (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
+        (uint256 _totalAssets, uint256 protocolFee, ) = getTotalAssetsAndFee();
         uint256 assets = _previewMint(shares, _totalAssets);
         (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
         require(depositAllowed, "FlexiblePortfolio: Sender not allowed to mint");
@@ -209,7 +209,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _mint(receiver, shares);
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        _payFeeAndUpdate(_fee, virtualTokenBalance + assets);
+        _payFeeAndUpdate(protocolFee, virtualTokenBalance + assets);
 
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
@@ -232,18 +232,18 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) public virtual whenNotPaused returns (uint256) {
-        (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
+        (uint256 _totalAssets, uint256 protocolFee, ) = getTotalAssetsAndFee();
         uint256 redeemedAssets = _convertToAssets(shares, _totalAssets);
         (bool withdrawAllowed, ) = onRedeem(msg.sender, redeemedAssets, receiver, owner);
         require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
         require(
-            _fee < virtualTokenBalance && redeemedAssets <= virtualTokenBalance - _fee,
+            protocolFee < virtualTokenBalance && redeemedAssets <= virtualTokenBalance - protocolFee,
             "FlexiblePortfolio: Amount exceeds pool balance"
         );
 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, redeemedAssets);
-        _payFeeAndUpdate(_fee, virtualTokenBalance - redeemedAssets);
+        _payFeeAndUpdate(protocolFee, virtualTokenBalance - redeemedAssets);
 
         emit Withdraw(msg.sender, receiver, owner, redeemedAssets, shares);
         return redeemedAssets;
@@ -278,12 +278,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) external whenNotPaused {
         require(amount > 0, "FlexiblePortfolio: Repayment amount must be greater than 0");
         require(instrument.recipient(instrumentId) == msg.sender, "FlexiblePortfolio: Not an instrument recipient");
-        (, uint256 _fee) = getTotalAssetsAndFee();
+        (, uint256 protocolFee, ) = getTotalAssetsAndFee();
         instrument.repay(instrumentId, amount);
         valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
 
         instrument.asset(instrumentId).safeTransferFrom(msg.sender, address(this), amount);
-        _payFeeAndUpdate(_fee, virtualTokenBalance + amount);
+        _payFeeAndUpdate(protocolFee, virtualTokenBalance + amount);
         emit InstrumentRepaid(instrument, instrumentId, amount);
     }
 
@@ -297,8 +297,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function payFeeAndUpdate() external {
-        (, uint256 _fee) = getTotalAssetsAndFee();
-        _payFeeAndUpdate(_fee, virtualTokenBalance);
+        (, uint256 protocolFee, ) = getTotalAssetsAndFee();
+        _payFeeAndUpdate(protocolFee, virtualTokenBalance);
     }
 
     function _payFeeAndUpdate(uint256 _fee, uint256 totalBalance) internal {
@@ -351,18 +351,22 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function totalAssets() public view override returns (uint256) {
-        (uint256 _totalAssets, ) = getTotalAssetsAndFee();
+        (uint256 _totalAssets, , ) = getTotalAssetsAndFee();
         return _totalAssets;
     }
 
-    function getTotalAssetsAndFee() internal view returns (uint256, uint256) {
+    function getTotalAssetsAndFee()
+        internal
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
+    {
         uint256 assetsBeforeFee = totalAssetsBeforeAccruedFee();
-        uint256 __accruedFee = _accruedFee(assetsBeforeFee);
-        if (__accruedFee > assetsBeforeFee) {
-            return (0, __accruedFee + unpaidProtocolFee);
-        } else {
-            return (assetsBeforeFee - __accruedFee, __accruedFee + unpaidProtocolFee);
-        }
+        (uint256 accruedProtocolFee, ) = _accruedFee(assetsBeforeFee);
+        return (assetsBeforeFee - accruedProtocolFee, accruedProtocolFee + unpaidProtocolFee, 0);
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
@@ -517,17 +521,20 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) public whenNotPaused returns (uint256) {
-        (uint256 _totalAssets, uint256 _fee) = getTotalAssetsAndFee();
+        (uint256 _totalAssets, uint256 protocolFee, ) = getTotalAssetsAndFee();
         uint256 shares = _previewWithdraw(assets, _totalAssets);
         (bool withdrawAllowed, ) = onWithdraw(msg.sender, assets, receiver, owner);
         require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
         require(receiver != address(this), "FlexiblePortfolio: Cannot withdraw to pool");
         require(owner != address(this), "FlexiblePortfolio: Cannot withdraw from pool");
         require(assets > 0, "FlexiblePortfolio: Cannot withdraw 0 assets");
-        require(_fee < virtualTokenBalance && assets <= virtualTokenBalance - _fee, "FlexiblePortfolio: Amount exceeds pool balance");
+        require(
+            protocolFee < virtualTokenBalance && assets <= virtualTokenBalance - protocolFee,
+            "FlexiblePortfolio: Amount exceeds pool balance"
+        );
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
-        _payFeeAndUpdate(_fee, virtualTokenBalance - assets);
+        _payFeeAndUpdate(protocolFee, virtualTokenBalance - assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return shares;
@@ -545,16 +552,21 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         }
     }
 
-    function accruedFee() external view returns (uint256) {
+    function accruedFee() external view returns (uint256 accruedProtocolFee, uint256 accruedManagerFee) {
         return _accruedFee(totalAssetsBeforeAccruedFee());
     }
 
-    function _accruedFee(uint256 _totalAssets) internal view returns (uint256) {
-        uint256 calculatedFee = ((block.timestamp - lastUpdateTime) * lastProtocolFee * _totalAssets) / YEAR / BASIS_PRECISION;
-        if (calculatedFee > _totalAssets) {
-            return _totalAssets;
+    function _accruedFee(uint256 _totalAssets) internal view returns (uint256 accruedProtocolFee, uint256 accruedManagerFee) {
+        uint256 adjustedTotalAssets = (block.timestamp - lastUpdateTime) * _totalAssets;
+        uint256 calculatedProtocolFee = (adjustedTotalAssets * lastProtocolFee) / YEAR / BASIS_PRECISION;
+        if (calculatedProtocolFee > _totalAssets) {
+            return (_totalAssets, 0);
+        }
+        uint256 calculatedManagerFee = (adjustedTotalAssets * lastManagerFee) / YEAR / BASIS_PRECISION;
+        if (calculatedProtocolFee + calculatedManagerFee > _totalAssets) {
+            return (calculatedProtocolFee, _totalAssets - calculatedProtocolFee);
         } else {
-            return calculatedFee;
+            return (calculatedProtocolFee, calculatedManagerFee);
         }
     }
 
