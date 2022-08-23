@@ -158,7 +158,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         );
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
         asset.safeTransfer(borrower, principalAmount);
-        _payFeeAndUpdate(protocolFee, virtualTokenBalance - principalAmount);
+        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance - principalAmount);
         emit InstrumentFunded(instrument, instrumentId);
     }
 
@@ -180,21 +180,23 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
-        (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
+        (bool depositAllowed, uint256 depositFee) = onDeposit(msg.sender, assets, receiver);
         require(depositAllowed, "FlexiblePortfolio: Deposit not allowed");
+        require(assets >= depositFee, "FlexiblePortfolio: Fee cannot be bigger than deposited assets");
         (uint256 _totalAssets, uint256 protocolFee, ) = getTotalAssetsAndFee();
-        require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
+        uint256 assetsAfterDepositFee = assets - depositFee;
+        require(assetsAfterDepositFee + _totalAssets <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
 
-        uint256 sharesToMint = _convertToShares(assets, _totalAssets);
+        uint256 sharesToMint = _convertToShares(assetsAfterDepositFee, _totalAssets);
         require(sharesToMint > 0, "FlexiblePortfolio: Cannot mint 0 shares");
 
         _mint(receiver, sharesToMint);
-        asset.safeTransferFrom(msg.sender, address(this), assets);
-        _payFeeAndUpdate(protocolFee, virtualTokenBalance + assets);
+        asset.safeTransferFrom(msg.sender, address(this), assetsAfterDepositFee);
+        _payFeeAndUpdate(protocolFee, 0, depositFee, virtualTokenBalance + assetsAfterDepositFee);
 
-        emit Deposit(msg.sender, receiver, assets, sharesToMint);
+        emit Deposit(msg.sender, receiver, assetsAfterDepositFee, sharesToMint);
         return sharesToMint;
     }
 
@@ -209,7 +211,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _mint(receiver, shares);
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        _payFeeAndUpdate(protocolFee, virtualTokenBalance + assets);
+        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance + assets);
 
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
@@ -243,7 +245,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, redeemedAssets);
-        _payFeeAndUpdate(protocolFee, virtualTokenBalance - redeemedAssets);
+        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance - redeemedAssets);
 
         emit Withdraw(msg.sender, receiver, owner, redeemedAssets, shares);
         return redeemedAssets;
@@ -283,7 +285,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
 
         instrument.asset(instrumentId).safeTransferFrom(msg.sender, address(this), amount);
-        _payFeeAndUpdate(protocolFee, virtualTokenBalance + amount);
+        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance + amount);
         emit InstrumentRepaid(instrument, instrumentId, amount);
     }
 
@@ -298,18 +300,39 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function payFeeAndUpdate() external {
         (, uint256 protocolFee, ) = getTotalAssetsAndFee();
-        _payFeeAndUpdate(protocolFee, virtualTokenBalance);
+        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance);
     }
 
-    function _payFeeAndUpdate(uint256 _fee, uint256 totalBalance) internal {
-        uint256 _feePaid = payFee(_fee, totalBalance);
-        virtualTokenBalance = totalBalance - _feePaid;
+    function _payFeeAndUpdate(
+        uint256 protocolFee,
+        uint256 managerContinousFee,
+        uint256 managerActionFee,
+        uint256 totalBalance
+    ) internal {
+        uint256 protocolFeePaid = payProtocolFee(protocolFee, totalBalance);
+        uint256 managerFeePaid = payManagerFee(managerContinousFee, managerActionFee, totalBalance - protocolFeePaid);
+        virtualTokenBalance = totalBalance - protocolFeePaid - managerFeePaid;
         lastUpdateTime = block.timestamp;
         updateLastProtocolFee();
         updateLastManagerFee();
     }
 
-    function payFee(uint256 _fee, uint256 balance) internal returns (uint256) {
+    function payManagerFee(
+        uint256 continousFee,
+        uint256 actionFee,
+        uint256 liquidity
+    ) internal returns (uint256) {
+        uint256 continousFeeToPay;
+        if (liquidity < continousFee) {
+            continousFeeToPay = liquidity;
+        } else {
+            continousFeeToPay = continousFee;
+        }
+        payFee(managerFeeBeneficiary(), continousFeeToPay + actionFee);
+        return continousFeeToPay;
+    }
+
+    function payProtocolFee(uint256 _fee, uint256 balance) internal returns (uint256) {
         uint256 feeToPay;
         if (balance < _fee) {
             feeToPay = balance;
@@ -318,10 +341,13 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
             feeToPay = _fee;
             unpaidProtocolFee = 0;
         }
-        address protocolAddress = protocolConfig.protocolAddress();
-        asset.safeTransfer(protocolAddress, feeToPay);
-        emit FeePaid(protocolAddress, feeToPay);
+        payFee(protocolConfig.protocolAddress(), feeToPay);
         return feeToPay;
+    }
+
+    function payFee(address feeReceiver, uint256 _fee) internal {
+        asset.safeTransfer(feeReceiver, _fee);
+        emit FeePaid(feeReceiver, _fee);
     }
 
     function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(MANAGER_ROLE) {
@@ -534,7 +560,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         );
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
-        _payFeeAndUpdate(protocolFee, virtualTokenBalance - assets);
+        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance - assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return shares;
@@ -567,6 +593,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
             return (calculatedProtocolFee, _totalAssets - calculatedProtocolFee);
         } else {
             return (calculatedProtocolFee, calculatedManagerFee);
+        }
+    }
+
+    function managerFeeBeneficiary() internal view returns (address) {
+        if (address(feeStrategy) == address(0)) {
+            return getRoleMember(MANAGER_ROLE, 0);
+        } else {
+            return feeStrategy.managerFeeBeneficiary();
         }
     }
 
