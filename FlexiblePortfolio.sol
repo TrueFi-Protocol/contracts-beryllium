@@ -235,20 +235,19 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address owner
     ) public virtual whenNotPaused returns (uint256) {
         (uint256 _totalAssets, uint256 protocolFee, ) = getTotalAssetsAndFee();
-        uint256 redeemedAssets = _convertToAssets(shares, _totalAssets);
-        (bool withdrawAllowed, ) = onRedeem(msg.sender, redeemedAssets, receiver, owner);
+        uint256 assets = _convertToAssets(shares, _totalAssets);
+        (bool withdrawAllowed, uint256 redeemFee) = onRedeem(msg.sender, assets, receiver, owner);
+        require(assets >= redeemFee, "FlexiblePortfolio: Redeem fee is bigger than redeemed assets");
         require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
-        require(
-            protocolFee < virtualTokenBalance && redeemedAssets <= virtualTokenBalance - protocolFee,
-            "FlexiblePortfolio: Amount exceeds pool balance"
-        );
+        require(assets + protocolFee <= virtualTokenBalance, "FlexiblePortfolio: Amount exceeds portfolio balance");
 
         _burnFrom(owner, msg.sender, shares);
-        asset.safeTransfer(receiver, redeemedAssets);
-        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance - redeemedAssets);
+        uint256 assetsAfterRedeemFee = assets - redeemFee;
+        asset.safeTransfer(receiver, assetsAfterRedeemFee);
+        _payFeeAndUpdate(protocolFee, 0, redeemFee, virtualTokenBalance - assetsAfterRedeemFee);
 
-        emit Withdraw(msg.sender, receiver, owner, redeemedAssets, shares);
-        return redeemedAssets;
+        emit Withdraw(msg.sender, receiver, owner, assetsAfterRedeemFee, shares);
+        return assetsAfterRedeemFee;
     }
 
     function getMaxSharesFromWithdrawStrategy(address owner) internal view returns (uint256) {
