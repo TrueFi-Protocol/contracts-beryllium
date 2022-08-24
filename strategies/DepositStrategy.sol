@@ -16,6 +16,10 @@ contract DepositStrategy is IDepositStrategy {
         return 0;
     }
 
+    function previewMintFee(uint256) external pure returns (uint256) {
+        return 0;
+    }
+
     function maxDeposit(address) external pure returns (uint256) {
         return type(uint256).max;
     }
