@@ -17,4 +17,6 @@ interface IWithdrawStrategy {
         address receiver,
         address owner
     ) external returns (bool, uint256);
+
+    function previewWithdrawFee(uint256 assetsBeforeFee) external view returns (uint256);
 }

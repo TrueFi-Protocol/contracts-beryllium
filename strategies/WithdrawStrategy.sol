@@ -25,4 +25,8 @@ contract WithdrawStrategy is IWithdrawStrategy {
     ) external pure returns (bool, uint256) {
         return (true, 0);
     }
+
+    function previewWithdrawFee(uint256) external pure returns (uint256) {
+        return 0;
+    }
 }
