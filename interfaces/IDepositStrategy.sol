@@ -8,5 +8,7 @@ interface IDepositStrategy {
         address receiver
     ) external returns (bool, uint256);
 
-    function maxDeposit(address sender) external view returns (uint256);
+    function previewDepositFee(uint256 assetsBeforeFee) external view returns (uint256 fee);
+
+    function maxDeposit(address sender) external view returns (uint256 assets);
 }

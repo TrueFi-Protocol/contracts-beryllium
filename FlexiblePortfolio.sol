@@ -172,7 +172,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
-        return convertToShares(assets);
+        uint256 fee = address(depositStrategy) != address(0x00) ? depositStrategy.previewDepositFee(assets) : 0;
+        uint256 assetsAfterFee = assets > fee ? assets - fee : 0;
+        return convertToShares(assetsAfterFee);
     }
 
     /* @notice This contract is upgradeable and interacts with settable deposit strategies,
