@@ -194,7 +194,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _mint(receiver, sharesToMint);
         asset.safeTransferFrom(msg.sender, address(this), assetsAfterDepositFee);
-        _payFeeAndUpdate(protocolFee, 0, depositFee, virtualTokenBalance + assetsAfterDepositFee);
+        _payFeeAndUpdate(protocolFee, 0, depositFee, virtualTokenBalance + assets);
 
         emit Deposit(msg.sender, receiver, assetsAfterDepositFee, sharesToMint);
         return sharesToMint;
@@ -309,6 +309,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 managerActionFee,
         uint256 totalBalance
     ) internal {
+        totalBalance -= managerActionFee;
         uint256 protocolFeePaid = payProtocolFee(protocolFee, totalBalance);
         uint256 managerFeePaid = payManagerFee(managerContinuousFee, managerActionFee, totalBalance - protocolFeePaid);
         virtualTokenBalance = totalBalance - protocolFeePaid - managerFeePaid;
@@ -551,19 +552,16 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address owner
     ) public whenNotPaused returns (uint256) {
         (uint256 _totalAssets, uint256 protocolFee, ) = getTotalAssetsAndFee();
-        uint256 shares = _previewWithdraw(assets, _totalAssets);
-        (bool withdrawAllowed, ) = onWithdraw(msg.sender, assets, receiver, owner);
+        (bool withdrawAllowed, uint256 withdrawFee) = onWithdraw(msg.sender, assets, receiver, owner);
+        uint256 shares = _previewWithdraw(assets + withdrawFee, _totalAssets);
         require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
         require(receiver != address(this), "FlexiblePortfolio: Cannot withdraw to pool");
         require(owner != address(this), "FlexiblePortfolio: Cannot withdraw from pool");
         require(assets > 0, "FlexiblePortfolio: Cannot withdraw 0 assets");
-        require(
-            protocolFee < virtualTokenBalance && assets <= virtualTokenBalance - protocolFee,
-            "FlexiblePortfolio: Amount exceeds pool balance"
-        );
+        require(assets + withdrawFee + protocolFee <= virtualTokenBalance, "FlexiblePortfolio: Amount exceeds pool balance");
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
-        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance - assets);
+        _payFeeAndUpdate(protocolFee, 0, withdrawFee, virtualTokenBalance - assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return shares;
