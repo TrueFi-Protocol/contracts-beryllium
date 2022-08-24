@@ -146,11 +146,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         require(isInstrumentAdded[instrument][instrumentId], "FlexiblePortfolio: Instrument is not added");
         address borrower = instrument.recipient(instrumentId);
         uint256 principalAmount = instrument.principal(instrumentId);
-        (, uint256 protocolFee, ) = getTotalAssetsAndFee();
-        require(
-            protocolFee < virtualTokenBalance && principalAmount <= virtualTokenBalance - protocolFee,
-            "FlexiblePortfolio: Insufficient funds in portfolio to fund loan"
-        );
+        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        uint256 totalFee = protocolFee + managerFee;
+        require(totalFee + principalAmount <= virtualTokenBalance, "FlexiblePortfolio: Insufficient funds in portfolio to fund loan");
         instrument.start(instrumentId);
         require(
             instrument.endDate(instrumentId) <= endDate,
@@ -158,7 +156,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         );
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
         asset.safeTransfer(borrower, principalAmount);
-        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance - principalAmount);
+        _payFeeAndUpdate(protocolFee, managerFee, 0, virtualTokenBalance - principalAmount);
         emit InstrumentFunded(instrument, instrumentId);
     }
 
@@ -307,12 +305,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function _payFeeAndUpdate(
         uint256 protocolFee,
-        uint256 managerContinousFee,
+        uint256 managerContinuousFee,
         uint256 managerActionFee,
         uint256 totalBalance
     ) internal {
         uint256 protocolFeePaid = payProtocolFee(protocolFee, totalBalance);
-        uint256 managerFeePaid = payManagerFee(managerContinousFee, managerActionFee, totalBalance - protocolFeePaid);
+        uint256 managerFeePaid = payManagerFee(managerContinuousFee, managerActionFee, totalBalance - protocolFeePaid);
         virtualTokenBalance = totalBalance - protocolFeePaid - managerFeePaid;
         lastUpdateTime = block.timestamp;
         updateLastProtocolFee();
@@ -320,18 +318,18 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function payManagerFee(
-        uint256 continousFee,
+        uint256 continuousFee,
         uint256 actionFee,
         uint256 liquidity
     ) internal returns (uint256) {
-        uint256 continousFeeToPay;
-        if (liquidity < continousFee) {
-            continousFeeToPay = liquidity;
+        uint256 continuousFeeToPay;
+        if (liquidity < continuousFee) {
+            continuousFeeToPay = liquidity;
         } else {
-            continousFeeToPay = continousFee;
+            continuousFeeToPay = continuousFee;
         }
-        payFee(managerFeeBeneficiary(), continousFeeToPay + actionFee);
-        return continousFeeToPay;
+        payFee(managerFeeBeneficiary(), continuousFeeToPay + actionFee);
+        return continuousFeeToPay;
     }
 
     function payProtocolFee(uint256 _fee, uint256 balance) internal returns (uint256) {
@@ -393,8 +391,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         )
     {
         uint256 assetsBeforeFee = totalAssetsBeforeAccruedFee();
-        (uint256 accruedProtocolFee, ) = _accruedFee(assetsBeforeFee);
-        return (assetsBeforeFee - accruedProtocolFee, accruedProtocolFee + unpaidProtocolFee, 0);
+        (uint256 accruedProtocolFee, uint256 accruedManagerFee) = _accruedFee(assetsBeforeFee);
+        return (assetsBeforeFee - accruedProtocolFee, accruedProtocolFee + unpaidProtocolFee, accruedManagerFee);
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
