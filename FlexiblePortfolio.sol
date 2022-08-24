@@ -183,7 +183,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         (bool depositAllowed, uint256 depositFee) = onDeposit(msg.sender, assets, receiver);
         require(depositAllowed, "FlexiblePortfolio: Deposit not allowed");
         require(assets >= depositFee, "FlexiblePortfolio: Fee cannot be bigger than deposited assets");
-        (uint256 _totalAssets, uint256 protocolFee, ) = getTotalAssetsAndFee();
+        (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         uint256 assetsAfterDepositFee = assets - depositFee;
         require(assetsAfterDepositFee + _totalAssets <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
@@ -194,7 +194,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _mint(receiver, sharesToMint);
         asset.safeTransferFrom(msg.sender, address(this), assetsAfterDepositFee);
-        _payFeeAndUpdate(protocolFee, 0, depositFee, virtualTokenBalance + assets);
+        _payFeeAndUpdate(protocolFee, managerFee, depositFee, virtualTokenBalance + assets);
 
         emit Deposit(msg.sender, receiver, assetsAfterDepositFee, sharesToMint);
         return sharesToMint;
