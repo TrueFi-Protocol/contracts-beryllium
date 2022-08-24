@@ -415,7 +415,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function previewRedeem(uint256 shares) public view virtual returns (uint256) {
-        return convertToAssets(shares);
+        uint256 fee = address(withdrawStrategy) != address(0x00) ? withdrawStrategy.previewRedeemFee(shares) : 0;
+        uint256 assets = convertToAssets(shares);
+        return fee < assets ? assets - fee : 0;
     }
 
     function liquidValue() public view returns (uint256) {
