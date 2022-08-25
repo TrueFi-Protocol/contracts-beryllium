@@ -300,8 +300,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function payFeeAndUpdate() external {
-        (, uint256 protocolFee, ) = getTotalAssetsAndFee();
-        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance);
+        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        _payFeeAndUpdate(protocolFee, managerFee, 0, virtualTokenBalance);
     }
 
     function _payFeeAndUpdate(
