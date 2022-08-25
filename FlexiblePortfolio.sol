@@ -202,7 +202,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function mint(uint256 shares, address receiver) public whenNotPaused returns (uint256) {
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be mint receiver");
-        (uint256 _totalAssets, uint256 protocolFee, ) = getTotalAssetsAndFee();
+        (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         uint256 assets = _previewMint(shares, _totalAssets);
         (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
         require(depositAllowed, "FlexiblePortfolio: Sender not allowed to mint");
@@ -211,7 +211,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         _mint(receiver, shares);
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        _payFeeAndUpdate(protocolFee, 0, 0, virtualTokenBalance + assets);
+        _payFeeAndUpdate(protocolFee, managerFee, 0, virtualTokenBalance + assets);
 
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
@@ -387,14 +387,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         internal
         view
         returns (
-            uint256,
-            uint256,
-            uint256
+            uint256 totalAssetsAfterFee,
+            uint256 protocolFee,
+            uint256 managerFee
         )
     {
         uint256 assetsBeforeFee = totalAssetsBeforeAccruedFee();
         (uint256 accruedProtocolFee, uint256 accruedManagerFee) = _accruedFee(assetsBeforeFee);
-        return (assetsBeforeFee - accruedProtocolFee, accruedProtocolFee + unpaidProtocolFee, accruedManagerFee);
+        return (assetsBeforeFee - accruedProtocolFee - accruedManagerFee, accruedProtocolFee + unpaidProtocolFee, accruedManagerFee);
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
