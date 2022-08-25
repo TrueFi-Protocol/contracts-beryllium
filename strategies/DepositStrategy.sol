@@ -12,6 +12,14 @@ contract DepositStrategy is IDepositStrategy {
         return (true, 0);
     }
 
+    function onMint(
+        address,
+        uint256,
+        address
+    ) external pure returns (bool, uint256) {
+        return (true, 0);
+    }
+
     function previewDepositFee(uint256) external pure returns (uint256) {
         return 0;
     }
