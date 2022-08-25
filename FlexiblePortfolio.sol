@@ -204,17 +204,18 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be mint receiver");
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         uint256 assets = _previewMint(shares, _totalAssets);
-        (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
+        (bool depositAllowed, uint256 mintFee) = onMint(msg.sender, assets, receiver);
+        uint256 assetsWithMintFee = assets + mintFee;
         require(depositAllowed, "FlexiblePortfolio: Sender not allowed to mint");
         require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Portfolio is full");
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
 
         _mint(receiver, shares);
-        asset.safeTransferFrom(msg.sender, address(this), assets);
-        _payFeeAndUpdate(protocolFee, managerFee, 0, virtualTokenBalance + assets);
+        asset.safeTransferFrom(msg.sender, address(this), assetsWithMintFee);
+        _payFeeAndUpdate(protocolFee, managerFee, mintFee, virtualTokenBalance + assetsWithMintFee);
 
         emit Deposit(msg.sender, receiver, assets, shares);
-        return assets;
+        return assetsWithMintFee + protocolFee + managerFee;
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
@@ -504,6 +505,18 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) internal returns (bool, uint256) {
         if (address(depositStrategy) != address(0x00)) {
             return depositStrategy.onDeposit(sender, assets, receiver);
+        } else {
+            return (true, 0);
+        }
+    }
+
+    function onMint(
+        address sender,
+        uint256 assets,
+        address receiver
+    ) internal returns (bool, uint256) {
+        if (address(depositStrategy) != address(0x00)) {
+            return depositStrategy.onMint(sender, assets, receiver);
         } else {
             return (true, 0);
         }
