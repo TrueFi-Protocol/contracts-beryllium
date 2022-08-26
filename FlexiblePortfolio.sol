@@ -386,7 +386,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
             return 0;
         }
         uint256 _totalAssets = virtualTokenBalance + valuationStrategy.calculateValue(this);
-        return unpaidProtocolFee > _totalAssets ? 0 : _totalAssets - unpaidProtocolFee;
+        uint256 unpaidFees = unpaidProtocolFee + unpaidManagerFee;
+        return unpaidFees > _totalAssets ? 0 : _totalAssets - unpaidFees;
     }
 
     function totalAssets() public view override returns (uint256) {
@@ -405,7 +406,11 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     {
         uint256 assetsBeforeFee = totalAssetsBeforeAccruedFee();
         (uint256 accruedProtocolFee, uint256 accruedManagerFee) = _accruedFee(assetsBeforeFee);
-        return (assetsBeforeFee - accruedProtocolFee - accruedManagerFee, accruedProtocolFee + unpaidProtocolFee, accruedManagerFee);
+        return (
+            assetsBeforeFee - accruedProtocolFee - accruedManagerFee,
+            accruedProtocolFee + unpaidProtocolFee,
+            accruedManagerFee + unpaidManagerFee
+        );
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
