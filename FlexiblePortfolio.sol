@@ -40,6 +40,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     uint256 public unpaidProtocolFee;
     uint256 public unpaidManagerFee;
     uint256 internal lastUpdateTime;
+    uint256 internal highestInstrumentEndDate;
 
     IValuationStrategy public valuationStrategy;
     IDepositStrategy public depositStrategy;
@@ -151,10 +152,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 totalFee = protocolFee + managerFee;
         require(totalFee + principalAmount <= virtualTokenBalance, "FlexiblePortfolio: Insufficient funds in portfolio to fund loan");
         instrument.start(instrumentId);
-        require(
-            instrument.endDate(instrumentId) <= endDate,
-            "FlexiblePortfolio: Cannot fund instrument which end date is after portfolio end date"
-        );
+        uint256 instrumentEndDate = instrument.endDate(instrumentId);
+        require(instrumentEndDate <= endDate, "FlexiblePortfolio: Cannot fund instrument which end date is after portfolio end date");
+        updateHighestInstrumentEndDate(instrumentEndDate);
+
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
         asset.safeTransfer(borrower, principalAmount);
         _payFeeAndUpdate(protocolFee, managerFee, 0, virtualTokenBalance - principalAmount);
@@ -167,6 +168,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         address(instrument).functionCall(updateInstrumentCalldata);
         emit InstrumentUpdated(instrument);
+    }
+
+    function updateHighestInstrumentEndDate(uint256 instrumentEndDate) internal {
+        if (instrumentEndDate > highestInstrumentEndDate) {
+            highestInstrumentEndDate = instrumentEndDate;
+        }
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
@@ -643,6 +650,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     function _setFeeStrategy(IFeeStrategy _feeStrategy) internal {
         emit FeeStrategyChanged(feeStrategy, _feeStrategy);
         feeStrategy = _feeStrategy;
+    }
+
+    function setEndDate(uint256 newEndDate) external onlyRole(MANAGER_ROLE) {
+        require(endDate > block.timestamp, "FlexiblePortfolio: Portfolio end date has elapsed");
+        require(newEndDate < endDate, "FlexiblePortfolio: New end date must be lower");
+        require(newEndDate > highestInstrumentEndDate, "FlexiblePortfolio: New end date must be after all instruments end dates");
+        require(newEndDate > block.timestamp, "FlexiblePortfolio: New end date must be bigger than current block");
+        endDate = newEndDate;
     }
 
     function _transfer(
