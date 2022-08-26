@@ -38,6 +38,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     uint256 public lastProtocolFee;
     uint256 public lastManagerFee;
     uint256 public unpaidProtocolFee;
+    uint256 public unpaidManagerFee;
     uint256 internal lastUpdateTime;
 
     IValuationStrategy public valuationStrategy;
@@ -328,8 +329,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 continuousFeeToPay;
         if (liquidity < continuousFee) {
             continuousFeeToPay = liquidity;
+            unpaidManagerFee = continuousFee - liquidity;
         } else {
             continuousFeeToPay = continuousFee;
+            unpaidManagerFee = 0;
         }
         payFee(managerFeeBeneficiary(), continuousFeeToPay + actionFee);
         return continuousFeeToPay;
