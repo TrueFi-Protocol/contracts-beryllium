@@ -460,6 +460,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
+        require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
         return _previewMint(shares, totalAssets());
     }
 

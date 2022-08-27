@@ -230,6 +230,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
+        require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
         uint256 assets = _previewMint(shares, totalAssets());
         uint256 fee = address(depositStrategy) != address(0x00) ? depositStrategy.previewMintFee(assets) : 0;
         return assets + fee;
