@@ -122,11 +122,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     function borrow(uint256 amount) public whenNotPaused {
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
-        require(address(this) != borrower, "AutomatedLineOfCredit: Pool cannot borrow from itself");
-        require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
+        require(address(this) != borrower, "AutomatedLineOfCredit: Portfolio cannot borrow from itself");
+        require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
         (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
-        require(amount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds pool balance");
+        require(amount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds portfolio balance");
         require(amount > 0, "AutomatedLineOfCredit: Cannot borrow zero assets");
 
         borrowedAmount += amount;
@@ -145,8 +145,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     function repay(uint256 amount) public whenNotPaused {
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
-        require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot repay itself");
-        require(borrower != address(this), "AutomatedLineOfCredit: Pool cannot repay itself");
+        require(msg.sender != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
+        require(borrower != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
 
         (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
 
@@ -163,8 +163,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     function repayInFull() external whenNotPaused {
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
-        require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot repay itself");
-        require(borrower != address(this), "AutomatedLineOfCredit: Pool cannot repay itself");
+        require(msg.sender != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
+        require(borrower != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
 
         uint256 _totalDebt = totalDebt();
 
@@ -202,14 +202,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) public whenNotPaused returns (uint256) {
-        require(receiver != address(this), "AutomatedLineOfCredit: Pool cannot be deposit receiver");
-        require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
+        require(receiver != address(this), "AutomatedLineOfCredit: Portfolio cannot be deposit receiver");
+        require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
         (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
         require(depositAllowed, "AutomatedLineOfCredit: Deposit not allowed");
 
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
         uint256 sharesToMint = _convertToShares(assets, _totalAssets);
-        require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Deposit would cause pool to exceed max size");
+        require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Deposit would cause portfolio to exceed max size");
         require(sharesToMint > 0, "AutomatedLineOfCredit: Cannot mint 0 shares");
 
         asset.safeTransferFrom(msg.sender, address(this), assets);
@@ -226,14 +226,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         address receiver,
         address owner
     ) public whenNotPaused returns (uint256) {
-        require(receiver != address(this), "AutomatedLineOfCredit: Cannot redeem to pool");
-        require(owner != address(this), "AutomatedLineOfCredit: Cannot redeem from pool");
+        require(receiver != address(this), "AutomatedLineOfCredit: Cannot redeem to portfolio");
+        require(owner != address(this), "AutomatedLineOfCredit: Cannot redeem from portfolio");
         require(shares > 0, "AutomatedLineOfCredit: Cannot redeem 0 shares");
 
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
         uint256 assetAmount = _convertToAssets(shares, _totalAssets);
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
-        require(assetAmount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Redeemed assets exceed pool balance");
+        require(assetAmount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Redeemed assets exceed portfolio balance");
         (bool withdrawAllowed, ) = onRedeem(msg.sender, assetAmount, receiver, owner);
         require(withdrawAllowed, "AutomatedLineOfCredit: Redeem not allowed");
 
@@ -265,14 +265,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         address receiver,
         address owner
     ) public whenNotPaused returns (uint256) {
-        require(receiver != address(this), "AutomatedLineOfCredit: Cannot withdraw to pool");
-        require(owner != address(this), "AutomatedLineOfCredit: Cannot withdraw from pool");
+        require(receiver != address(this), "AutomatedLineOfCredit: Cannot withdraw to portfolio");
+        require(owner != address(this), "AutomatedLineOfCredit: Cannot withdraw from portfolio");
         require(assets > 0, "AutomatedLineOfCredit: Cannot withdraw 0 assets");
 
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
         uint256 shares = _previewWithdraw(assets, _totalAssets);
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
-        require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds pool liquidity");
+        require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds portfolio liquidity");
         (bool withdrawAllowed, ) = onWithdraw(msg.sender, assets, receiver, owner);
         require(withdrawAllowed, "AutomatedLineOfCredit: Withdraw not allowed");
 
@@ -287,15 +287,15 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function mint(uint256 shares, address receiver) public virtual whenNotPaused returns (uint256) {
-        require(msg.sender != address(this), "AutomatedLineOfCredit: Pool cannot mint");
-        require(receiver != address(this), "AutomatedLineOfCredit: Cannot mint to pool");
-        require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
+        require(msg.sender != address(this), "AutomatedLineOfCredit: Portfolio cannot mint");
+        require(receiver != address(this), "AutomatedLineOfCredit: Cannot mint to portfolio");
+        require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
 
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
         uint256 assets = _previewMint(shares, _totalAssets);
         (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
         require(depositAllowed, "AutomatedLineOfCredit: Sender not allowed to mint");
-        require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Mint would cause pool to exceed max size");
+        require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Mint would cause portfolio to exceed max size");
 
         asset.safeTransferFrom(msg.sender, address(this), assets);
         _mint(receiver, shares);
@@ -455,7 +455,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        require(block.timestamp < endDate, "AutomatedLineOfCredit: Pool end date has elapsed");
+        require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
         return convertToShares(assets);
     }
 

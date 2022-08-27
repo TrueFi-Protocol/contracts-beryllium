@@ -193,7 +193,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         require(assets >= depositFee, "FlexiblePortfolio: Fee cannot be bigger than deposited assets");
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         uint256 assetsAfterDepositFee = assets - depositFee;
-        require(assetsAfterDepositFee + _totalAssets <= maxSize, "FlexiblePortfolio: Deposit would cause pool to exceed max size");
+        require(
+            assetsAfterDepositFee + _totalAssets <= maxSize,
+            "FlexiblePortfolio: Deposit would cause portfolio to exceed max size"
+        );
         require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
         require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
 
@@ -584,12 +587,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         (bool withdrawAllowed, uint256 withdrawFee) = onWithdraw(msg.sender, assets, receiver, owner);
         uint256 shares = _previewWithdraw(assets + withdrawFee, _totalAssets);
         require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
-        require(receiver != address(this), "FlexiblePortfolio: Cannot withdraw to pool");
-        require(owner != address(this), "FlexiblePortfolio: Cannot withdraw from pool");
+        require(receiver != address(this), "FlexiblePortfolio: Cannot withdraw to portfolio");
+        require(owner != address(this), "FlexiblePortfolio: Cannot withdraw from portfolio");
         require(assets > 0, "FlexiblePortfolio: Cannot withdraw 0 assets");
         require(
             assets + withdrawFee + protocolFee + managerFee <= virtualTokenBalance,
-            "FlexiblePortfolio: Amount exceeds pool balance"
+            "FlexiblePortfolio: Amount exceeds portfolio balance"
         );
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
