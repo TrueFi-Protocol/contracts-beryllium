@@ -32,7 +32,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     uint256 public virtualTokenBalance;
     uint256 public borrowedAmount;
     uint256 public accruedInterest;
-    uint256 public lastProtocolFee;
+    uint256 public lastProtocolFeeRate;
     uint256 public unpaidFee;
     uint256 internal lastUpdateTime;
 
@@ -134,7 +134,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         asset.safeTransfer(borrower, amount);
         payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - amount);
 
-        updateLastProtocolFee();
+        updateLastProtocolFeeRate();
         emit Borrowed(amount);
     }
 
@@ -181,7 +181,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         asset.safeTransferFrom(borrower, address(this), amount);
         payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance + amount);
 
-        updateLastProtocolFee();
+        updateLastProtocolFeeRate();
         emit Repaid(amount);
     }
 
@@ -216,7 +216,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         _mint(receiver, sharesToMint);
         payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance + assets);
 
-        updateLastProtocolFee();
+        updateLastProtocolFeeRate();
         emit Deposit(msg.sender, receiver, assets, sharesToMint);
         return sharesToMint;
     }
@@ -241,7 +241,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         asset.safeTransfer(receiver, assetAmount);
         payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - assetAmount);
 
-        updateLastProtocolFee();
+        updateLastProtocolFeeRate();
         emit Withdraw(msg.sender, receiver, owner, assetAmount, shares);
 
         return assetAmount;
@@ -280,7 +280,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         asset.safeTransfer(receiver, assets);
         payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - assets);
 
-        updateLastProtocolFee();
+        updateLastProtocolFeeRate();
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
         return shares;
@@ -301,7 +301,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         _mint(receiver, shares);
         payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance + assets);
 
-        updateLastProtocolFee();
+        updateLastProtocolFeeRate();
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
     }
@@ -329,7 +329,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     function updateAndPayFee() public {
         (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
         payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance);
-        updateLastProtocolFee();
+        updateLastProtocolFeeRate();
     }
 
     function updateAndGetTotalAssetsAndFee() internal returns (uint256, uint256) {
@@ -528,8 +528,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         }
     }
 
-    function updateLastProtocolFee() internal {
-        lastProtocolFee = protocolConfig.protocolFee();
+    function updateLastProtocolFeeRate() internal {
+        lastProtocolFeeRate = protocolConfig.protocolFeeRate();
     }
 
     function onWithdraw(
@@ -591,7 +591,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function _accruedFee(uint256 _totalAssets) internal view returns (uint256) {
-        uint256 calculatedFee = ((block.timestamp - lastUpdateTime) * lastProtocolFee * _totalAssets) / YEAR / BASIS_PRECISION;
+        uint256 calculatedFee = ((block.timestamp - lastUpdateTime) * lastProtocolFeeRate * _totalAssets) / YEAR / BASIS_PRECISION;
         if (calculatedFee > _totalAssets) {
             return _totalAssets;
         } else {

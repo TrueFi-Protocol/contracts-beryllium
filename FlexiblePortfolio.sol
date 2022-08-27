@@ -35,7 +35,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     mapping(IDebtInstrument => bool) public isInstrumentAllowed;
 
     uint256 public virtualTokenBalance;
-    uint256 public lastProtocolFee;
+    uint256 public lastProtocolFeeRate;
     uint256 public lastManagerFee;
     uint256 public unpaidProtocolFee;
     uint256 public unpaidManagerFee;
@@ -328,7 +328,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 managerFeePaid = payManagerFee(managerContinuousFee, managerActionFee, totalBalance - protocolFeePaid);
         virtualTokenBalance = totalBalance - protocolFeePaid - managerFeePaid;
         lastUpdateTime = block.timestamp;
-        updateLastProtocolFee();
+        updateLastProtocolFeeRate();
         updateLastManagerFee();
     }
 
@@ -603,8 +603,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return shares;
     }
 
-    function updateLastProtocolFee() internal {
-        lastProtocolFee = protocolConfig.protocolFee();
+    function updateLastProtocolFeeRate() internal {
+        lastProtocolFeeRate = protocolConfig.protocolFeeRate();
     }
 
     function updateLastManagerFee() internal {
@@ -621,7 +621,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function _accruedFee(uint256 _totalAssets) internal view returns (uint256 accruedProtocolFee, uint256 accruedManagerFee) {
         uint256 adjustedTotalAssets = (block.timestamp - lastUpdateTime) * _totalAssets;
-        uint256 calculatedProtocolFee = (adjustedTotalAssets * lastProtocolFee) / YEAR / BASIS_PRECISION;
+        uint256 calculatedProtocolFee = (adjustedTotalAssets * lastProtocolFeeRate) / YEAR / BASIS_PRECISION;
         if (calculatedProtocolFee > _totalAssets) {
             return (_totalAssets, 0);
         }

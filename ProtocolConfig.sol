@@ -5,29 +5,29 @@ import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {Upgradeable} from "./access/Upgradeable.sol";
 
 contract ProtocolConfig is Upgradeable, IProtocolConfig {
-    uint256 public protocolFee;
+    uint256 public protocolFeeRate;
     address public protocolAddress;
     address public pauserAddress;
 
-    event ProtocolFeeChanged(uint256 newProtocolFee);
+    event ProtocolFeeRateChanged(uint256 newProtocolFeeRate);
     event ProtocolAddressChanged(address indexed newProtocolAddress);
     event PauserAddressChanged(address indexed newPauserAddress);
 
     function initialize(
-        uint256 _protocolFee,
+        uint256 _protocolFeeRate,
         address _protocolAddress,
         address _pauserAddress
     ) external initializer {
         __Upgradeable_init(msg.sender, _pauserAddress);
-        protocolFee = _protocolFee;
+        protocolFeeRate = _protocolFeeRate;
         protocolAddress = _protocolAddress;
         pauserAddress = _pauserAddress;
     }
 
-    function setProtocolFee(uint256 newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(newFee != protocolFee, "ProtocolConfig: New fee needs to be different");
-        protocolFee = newFee;
-        emit ProtocolFeeChanged(newFee);
+    function setProtocolFeeRate(uint256 newFeeRate) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newFeeRate != protocolFeeRate, "ProtocolConfig: New fee needs to be different");
+        protocolFeeRate = newFeeRate;
+        emit ProtocolFeeRateChanged(newFeeRate);
     }
 
     function setProtocolAddress(address newProtocolAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
