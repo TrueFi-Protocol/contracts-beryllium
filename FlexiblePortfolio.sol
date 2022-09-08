@@ -77,7 +77,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         IDebtInstrument[] calldata _allowedInstruments,
         ERC20Metadata calldata tokenMetadata
     ) external initializer {
-        require(_duration > 0, "FlexiblePortfolio: Cannot have zero duration");
+        require(_duration > 0, "FP:Duration can't be 0");
         __Upgradeable_init(_protocolConfig.protocolAddress(), _protocolConfig.pauserAddress());
         __ERC20_init(tokenMetadata.name, tokenMetadata.symbol);
         _grantRole(MANAGER_ROLE, _manager);
@@ -102,7 +102,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) public onlyRole(MANAGER_ROLE) {
-        require(_withdrawStrategy != withdrawStrategy, "FlexiblePortfolio: New withdraw strategy needs to be different");
+        require(_withdrawStrategy != withdrawStrategy, "FP:Value has to be different");
         _setWithdrawStrategy(_withdrawStrategy);
     }
 
@@ -112,7 +112,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function setDepositStrategy(IDepositStrategy _depositStrategy) public onlyRole(MANAGER_ROLE) {
-        require(_depositStrategy != depositStrategy, "FlexiblePortfolio: New deposit strategy needs to be different");
+        require(_depositStrategy != depositStrategy, "FP:Value has to be different");
         _setDepositStrategy(_depositStrategy);
     }
 
@@ -131,13 +131,13 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         onlyRole(MANAGER_ROLE)
         returns (uint256)
     {
-        require(isInstrumentAllowed[instrument], "FlexiblePortfolio: Instrument is not allowed");
-        require(instrument.issueInstrumentSelector() == bytes4(issueInstrumentCalldata), "FlexiblePortfolio: Invalid function call");
+        require(isInstrumentAllowed[instrument], "FP:Instrument not allowed");
+        require(instrument.issueInstrumentSelector() == bytes4(issueInstrumentCalldata), "FP:Invalid function call");
 
         bytes memory result = address(instrument).functionCall(issueInstrumentCalldata);
 
         uint256 instrumentId = abi.decode(result, (uint256));
-        require(instrument.asset(instrumentId) == asset, "FlexiblePortfolio: Cannot add instrument with different underlying token");
+        require(instrument.asset(instrumentId) == asset, "FP:Token mismatch");
         isInstrumentAdded[instrument][instrumentId] = true;
         emit InstrumentAdded(instrument, instrumentId);
 
@@ -145,15 +145,15 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function fundInstrument(IDebtInstrument instrument, uint256 instrumentId) public onlyRole(MANAGER_ROLE) {
-        require(isInstrumentAdded[instrument][instrumentId], "FlexiblePortfolio: Instrument is not added");
+        require(isInstrumentAdded[instrument][instrumentId], "FP:Instrument not added");
         address borrower = instrument.recipient(instrumentId);
         uint256 principalAmount = instrument.principal(instrumentId);
         (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         uint256 totalFee = protocolFee + managerFee;
-        require(totalFee + principalAmount <= virtualTokenBalance, "FlexiblePortfolio: Insufficient funds in portfolio to fund loan");
+        require(totalFee + principalAmount <= virtualTokenBalance, "FP:Not enough liquidity");
         instrument.start(instrumentId);
         uint256 instrumentEndDate = instrument.endDate(instrumentId);
-        require(instrumentEndDate <= endDate, "FlexiblePortfolio: Cannot fund instrument which end date is after portfolio end date");
+        require(instrumentEndDate <= endDate, "FP:Instrument has bigger endDate");
         updateHighestInstrumentEndDate(instrumentEndDate);
 
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
@@ -163,8 +163,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function updateInstrument(IDebtInstrument instrument, bytes calldata updateInstrumentCalldata) external onlyRole(MANAGER_ROLE) {
-        require(isInstrumentAllowed[instrument], "FlexiblePortfolio: Instrument is not allowed");
-        require(instrument.updateInstrumentSelector() == bytes4(updateInstrumentCalldata), "FlexiblePortfolio: Invalid function call");
+        require(isInstrumentAllowed[instrument], "FP:Instrument not allowed");
+        require(instrument.updateInstrumentSelector() == bytes4(updateInstrumentCalldata), "FP:Invalid function call");
 
         address(instrument).functionCall(updateInstrumentCalldata);
         emit InstrumentUpdated(instrument);
@@ -177,7 +177,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
+        require(block.timestamp < endDate, "FP:End date elapsed");
         uint256 fee = address(depositStrategy) != address(0x00) ? depositStrategy.previewDepositFee(assets) : 0;
         uint256 assetsAfterFee = assets > fee ? assets - fee : 0;
         return convertToShares(assetsAfterFee);
@@ -189,19 +189,16 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
      */
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
         (bool depositAllowed, uint256 depositFee) = onDeposit(msg.sender, assets, receiver);
-        require(depositAllowed, "FlexiblePortfolio: Deposit not allowed");
-        require(assets >= depositFee, "FlexiblePortfolio: Fee cannot be bigger than deposited assets");
+        require(depositAllowed, "FP:Operation not allowed");
+        require(assets >= depositFee, "FP:Fee bigger than assets");
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         uint256 assetsAfterDepositFee = assets - depositFee;
-        require(
-            assetsAfterDepositFee + _totalAssets <= maxSize,
-            "FlexiblePortfolio: Deposit would cause portfolio to exceed max size"
-        );
-        require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
-        require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be deposit receiver");
+        require(assetsAfterDepositFee + _totalAssets <= maxSize, "FP:Portfolio is full");
+        require(block.timestamp < endDate, "FP:End date elapsed");
+        require(receiver != address(this), "FP:Wrong receiver/owner");
 
         uint256 sharesToMint = _convertToShares(assetsAfterDepositFee, _totalAssets);
-        require(sharesToMint > 0, "FlexiblePortfolio: Cannot mint 0 shares");
+        require(sharesToMint > 0, "FP:Amount can't be 0");
 
         _mint(receiver, sharesToMint);
         asset.safeTransferFrom(msg.sender, address(this), assetsAfterDepositFee);
@@ -212,14 +209,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function mint(uint256 shares, address receiver) public whenNotPaused returns (uint256) {
-        require(receiver != address(this), "FlexiblePortfolio: Portfolio cannot be mint receiver");
+        require(receiver != address(this), "FP:Wrong receiver/owner");
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         uint256 assets = _previewMint(shares, _totalAssets);
         (bool depositAllowed, uint256 mintFee) = onMint(msg.sender, assets, receiver);
         uint256 assetsWithMintFee = assets + mintFee;
-        require(depositAllowed, "FlexiblePortfolio: Sender not allowed to mint");
-        require(assets + _totalAssets <= maxSize, "FlexiblePortfolio: Portfolio is full");
-        require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
+        require(depositAllowed, "FP:Operation not allowed");
+        require(assets + _totalAssets <= maxSize, "FP:Portfolio is full");
+        require(block.timestamp < endDate, "FP:End date elapsed");
 
         _mint(receiver, shares);
         asset.safeTransferFrom(msg.sender, address(this), assetsWithMintFee);
@@ -230,7 +227,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
-        require(block.timestamp < endDate, "FlexiblePortfolio: Portfolio end date has elapsed");
+        require(block.timestamp < endDate, "FP:End date elapsed");
         uint256 assets = _previewMint(shares, totalAssets());
         uint256 fee = address(depositStrategy) != address(0x00) ? depositStrategy.previewMintFee(assets) : 0;
         return assets + fee;
@@ -252,9 +249,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         uint256 assets = _convertToAssets(shares, _totalAssets);
         (bool withdrawAllowed, uint256 redeemFee) = onRedeem(msg.sender, assets, receiver, owner);
-        require(assets >= redeemFee, "FlexiblePortfolio: Redeem fee is bigger than redeemed assets");
-        require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
-        require(assets + protocolFee + managerFee <= virtualTokenBalance, "FlexiblePortfolio: Amount exceeds portfolio balance");
+        require(assets >= redeemFee, "FP:Fee bigger than assets");
+        require(withdrawAllowed, "FP:Operation not allowed");
+        require(assets + protocolFee + managerFee <= virtualTokenBalance, "FP:Not enough liquidity");
 
         _burnFrom(owner, msg.sender, shares);
         uint256 assetsAfterRedeemFee = assets - redeemFee;
@@ -292,8 +289,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 instrumentId,
         uint256 amount
     ) external whenNotPaused {
-        require(amount > 0, "FlexiblePortfolio: Repayment amount must be greater than 0");
-        require(instrument.recipient(instrumentId) == msg.sender, "FlexiblePortfolio: Not an instrument recipient");
+        require(amount > 0, "FP:Amount can't be 0");
+        require(instrument.recipient(instrumentId) == msg.sender, "FP:Wrong recipient");
         (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         instrument.repay(instrumentId, amount);
         valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
@@ -368,7 +365,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(MANAGER_ROLE) {
-        require(_valuationStrategy != valuationStrategy, "FlexiblePortfolio: New valuation strategy needs to be different");
+        require(_valuationStrategy != valuationStrategy, "FP:Value has to be different");
         valuationStrategy = _valuationStrategy;
         emit ValuationStrategyChanged(_valuationStrategy);
     }
@@ -468,7 +465,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
-        require(_maxSize != maxSize, "FlexiblePortfolio: New max size needs to be different");
+        require(_maxSize != maxSize, "FP:Value has to be different");
         maxSize = _maxSize;
         emit MaxSizeChanged(_maxSize);
     }
@@ -560,7 +557,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) internal {
         if (spender != owner) {
             uint256 allowed = allowance(owner, msg.sender);
-            require(allowed >= shares, "FlexiblePortfolio: Caller not approved to burn given amount of shares");
+            require(allowed >= shares, "FP:Not enough allowance");
             _approve(owner, msg.sender, allowed - shares);
         }
         _burn(owner, shares);
@@ -587,14 +584,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         (bool withdrawAllowed, uint256 withdrawFee) = onWithdraw(msg.sender, assets, receiver, owner);
         uint256 shares = _previewWithdraw(assets + withdrawFee, _totalAssets);
-        require(withdrawAllowed, "FlexiblePortfolio: Withdraw not allowed");
-        require(receiver != address(this), "FlexiblePortfolio: Cannot withdraw to portfolio");
-        require(owner != address(this), "FlexiblePortfolio: Cannot withdraw from portfolio");
-        require(assets > 0, "FlexiblePortfolio: Cannot withdraw 0 assets");
-        require(
-            assets + withdrawFee + protocolFee + managerFee <= virtualTokenBalance,
-            "FlexiblePortfolio: Amount exceeds portfolio balance"
-        );
+        require(withdrawAllowed, "FP:Operation not allowed");
+        require(receiver != address(this) && owner != address(this), "FP:Wrong receiver/owner");
+        require(assets > 0, "FP:Amount can't be 0");
+        require(assets + withdrawFee + protocolFee + managerFee <= virtualTokenBalance, "FP:Not enough liquidity");
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
         _payFeeAndUpdate(protocolFee, managerFee, withdrawFee, virtualTokenBalance - assets);
@@ -642,7 +635,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(MANAGER_ROLE) {
-        require(_transferStrategy != transferStrategy, "FlexiblePortfolio: New transfer strategy needs to be different");
+        require(_transferStrategy != transferStrategy, "FP:Value has to be different");
         _setTransferStrategy(_transferStrategy);
     }
 
@@ -652,7 +645,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function setFeeStrategy(IFeeStrategy _feeStrategy) public onlyRole(MANAGER_ROLE) {
-        require(_feeStrategy != feeStrategy, "FlexiblePortfolio: New fee strategy needs to be different");
+        require(_feeStrategy != feeStrategy, "FP:Value has to be different");
         _setFeeStrategy(_feeStrategy);
     }
 
@@ -662,10 +655,11 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function setEndDate(uint256 newEndDate) external onlyRole(MANAGER_ROLE) {
-        require(endDate > block.timestamp, "FlexiblePortfolio: Portfolio end date has elapsed");
-        require(newEndDate < endDate, "FlexiblePortfolio: New end date must be lower");
-        require(newEndDate > highestInstrumentEndDate, "FlexiblePortfolio: New end date must be after all instruments end dates");
-        require(newEndDate > block.timestamp, "FlexiblePortfolio: New end date must be bigger than current block");
+        require(endDate > block.timestamp, "FP:End date elapsed");
+        require(
+            newEndDate < endDate && newEndDate > highestInstrumentEndDate && newEndDate > block.timestamp,
+            "FP:New endDate too big"
+        );
         endDate = newEndDate;
     }
 
@@ -675,10 +669,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 amount
     ) internal override whenNotPaused {
         if (address(transferStrategy) != address(0)) {
-            require(
-                ITransferStrategy(transferStrategy).canTransfer(sender, recipient, amount),
-                "FlexiblePortfolio: This transfer not permitted"
-            );
+            require(ITransferStrategy(transferStrategy).canTransfer(sender, recipient, amount), "FP:Operation not allowed");
         }
         super._transfer(sender, recipient, amount);
     }
