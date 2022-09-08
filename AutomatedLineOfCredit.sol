@@ -147,8 +147,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
         require(msg.sender != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
         require(borrower != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
-
         (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
+        require(amount <= borrowedAmount + accruedInterest, "AutomatedLineOfCredit: Amount must be less than total debt");
 
         if (amount > accruedInterest) {
             uint256 repaidPrincipal = amount - accruedInterest;
