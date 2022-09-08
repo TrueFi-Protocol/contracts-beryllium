@@ -622,7 +622,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         if (debt == 0) {
             return 0;
         }
-        return (debt * BASIS_PRECISION) / _totalAssetsBeforeAccruedFee(debt);
+        uint256 _totalAssets = _totalAssetsBeforeAccruedFee(debt);
+        if (_totalAssets == 0) {
+            return BASIS_PRECISION;
+        }
+        return (debt * BASIS_PRECISION) / _totalAssets;
     }
 
     function _transfer(
