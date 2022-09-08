@@ -611,11 +611,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     function getTotalAssetsAndFee(uint256 debt) internal view returns (uint256, uint256) {
         uint256 assetsBeforeFee = _totalAssetsBeforeAccruedFee(debt);
         uint256 fee = _accruedFee(assetsBeforeFee);
-        if (fee > assetsBeforeFee) {
-            return (0, fee + unpaidFee);
-        } else {
-            return (assetsBeforeFee - fee, fee + unpaidFee);
-        }
+        return (assetsBeforeFee - fee, fee + unpaidFee);
     }
 
     function _utilization(uint256 debt) internal view returns (uint256) {
