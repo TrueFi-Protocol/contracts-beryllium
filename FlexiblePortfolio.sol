@@ -131,17 +131,23 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         onlyRole(MANAGER_ROLE)
         returns (uint256)
     {
-        require(isInstrumentAllowed[instrument], "FP:Instrument not allowed");
-        require(instrument.issueInstrumentSelector() == bytes4(issueInstrumentCalldata), "FP:Invalid function call");
-
-        bytes memory result = address(instrument).functionCall(issueInstrumentCalldata);
-
+        bytes memory result = _executeInstrumentFunctionCall(instrument, instrument.issueInstrumentSelector, issueInstrumentCalldata);
         uint256 instrumentId = abi.decode(result, (uint256));
         require(instrument.asset(instrumentId) == asset, "FP:Token mismatch");
         isInstrumentAdded[instrument][instrumentId] = true;
         emit InstrumentAdded(instrument, instrumentId);
 
         return instrumentId;
+    }
+
+    function _executeInstrumentFunctionCall(
+        IDebtInstrument instrument,
+        function() external returns (bytes4) functionSelector,
+        bytes calldata functionCallData
+    ) internal returns (bytes memory) {
+        require(isInstrumentAllowed[instrument], "FP:Instrument not allowed");
+        require(functionSelector() == bytes4(functionCallData), "FP:Invalid function call");
+        return address(instrument).functionCall(functionCallData);
     }
 
     function fundInstrument(IDebtInstrument instrument, uint256 instrumentId) public onlyRole(MANAGER_ROLE) {
@@ -163,10 +169,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function updateInstrument(IDebtInstrument instrument, bytes calldata updateInstrumentCalldata) external onlyRole(MANAGER_ROLE) {
-        require(isInstrumentAllowed[instrument], "FP:Instrument not allowed");
-        require(instrument.updateInstrumentSelector() == bytes4(updateInstrumentCalldata), "FP:Invalid function call");
-
-        address(instrument).functionCall(updateInstrumentCalldata);
+        _executeInstrumentFunctionCall(instrument, instrument.updateInstrumentSelector, updateInstrumentCalldata);
         emit InstrumentUpdated(instrument);
     }
 
@@ -178,9 +181,17 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
         require(block.timestamp < endDate, "FP:End date elapsed");
-        uint256 fee = address(depositStrategy) != address(0x00) ? depositStrategy.previewDepositFee(assets) : 0;
+        uint256 fee = _getPreviewDepositFee(assets);
         uint256 assetsAfterFee = assets > fee ? assets - fee : 0;
         return convertToShares(assetsAfterFee);
+    }
+
+    function _getPreviewDepositFee(uint256 assets) internal view returns (uint256) {
+        if (address(depositStrategy) != address(0x00)) {
+            return depositStrategy.previewDepositFee(assets);
+        } else {
+            return 0;
+        }
     }
 
     /* @notice This contract is upgradeable and interacts with settable deposit strategies,
@@ -197,11 +208,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 sharesToMint = _convertToShares(assetsAfterDepositFee, _totalAssets);
         require(sharesToMint > 0, "FP:Amount can't be 0");
 
-        _mint(receiver, sharesToMint);
-        asset.safeTransferFrom(msg.sender, address(this), assetsAfterDepositFee);
+        _executeDeposit(receiver, sharesToMint, assetsAfterDepositFee, assetsAfterDepositFee);
         _payFeeAndUpdate(protocolFee, managerFee, depositFee, virtualTokenBalance + assets);
-
-        emit Deposit(msg.sender, receiver, assetsAfterDepositFee, sharesToMint);
         return sharesToMint;
     }
 
@@ -224,19 +232,34 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 assetsWithMintFee = assets + mintFee;
         _checkDeposit(receiver, _totalAssets, assets, depositAllowed);
 
-        _mint(receiver, shares);
-        asset.safeTransferFrom(msg.sender, address(this), assetsWithMintFee);
+        _executeDeposit(receiver, shares, assetsWithMintFee, assets);
         _payFeeAndUpdate(protocolFee, managerFee, mintFee, virtualTokenBalance + assetsWithMintFee);
-
-        emit Deposit(msg.sender, receiver, assets, shares);
         return assetsWithMintFee + protocolFee + managerFee;
+    }
+
+    function _executeDeposit(
+        address receiver,
+        uint256 shares,
+        uint256 assetsWithFee,
+        uint256 assets
+    ) internal {
+        _mint(receiver, shares);
+        asset.safeTransferFrom(msg.sender, address(this), assetsWithFee);
+        emit Deposit(msg.sender, receiver, assets, shares);
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
         require(block.timestamp < endDate, "FP:End date elapsed");
         uint256 assets = _previewMint(shares, totalAssets());
-        uint256 fee = address(depositStrategy) != address(0x00) ? depositStrategy.previewMintFee(assets) : 0;
-        return assets + fee;
+        return assets + _getPreviewMintFee(assets);
+    }
+
+    function _getPreviewMintFee(uint256 assets) internal view returns (uint256) {
+        if (address(depositStrategy) != address(0x00)) {
+            return depositStrategy.previewMintFee(assets);
+        } else {
+            return 0;
+        }
     }
 
     function _previewMint(uint256 shares, uint256 _totalAssets) internal view returns (uint256) {
