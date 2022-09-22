@@ -24,6 +24,10 @@ contract FlexiblePortfolioHarness is FlexiblePortfolio {
         return managerFeeBeneficiary();
     }
 
+    function highestInstrumentEndDateHarness() public view returns (uint256) {
+        return highestInstrumentEndDate;
+    }
+
     function lastUpdateTimeHarness() public view returns (uint256) {
         return lastUpdateTime;
     }
