@@ -34,6 +34,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     IProtocolConfig public protocolConfig;
     mapping(IDebtInstrument => bool) public isInstrumentAllowed;
 
+    address public managerFeeBeneficiary;
     uint256 public virtualTokenBalance;
     uint256 public lastProtocolFeeRate;
     uint256 public lastManagerFeeRate;
@@ -57,6 +58,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     event InstrumentRepaid(IDebtInstrument indexed instrument, uint256 indexed instrumentId, uint256 amount);
 
     event MaxSizeChanged(uint256 newMaxSize);
+    event ManagerFeeBeneficiaryChanged(address indexed managerFeeBeneficiary);
     event ValuationStrategyChanged(IValuationStrategy indexed strategy);
     event DepositStrategyChanged(IDepositStrategy indexed oldStrategy, IDepositStrategy indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed oldStrategy, IWithdrawStrategy indexed newStrategy);
@@ -81,6 +83,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         __Upgradeable_init(_protocolConfig.protocolAddress(), _protocolConfig.pauserAddress());
         __ERC20_init(tokenMetadata.name, tokenMetadata.symbol);
         _grantRole(MANAGER_ROLE, _manager);
+        _setManagerFeeBeneficiary(_manager);
         protocolConfig = _protocolConfig;
         endDate = block.timestamp + _duration;
         asset = _asset;
@@ -368,7 +371,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
             continuousFeeToPay = continuousFee;
             unpaidManagerFee = 0;
         }
-        payFee(managerFeeBeneficiary(), continuousFeeToPay + actionFee);
+        payFee(managerFeeBeneficiary, continuousFeeToPay + actionFee);
         return continuousFeeToPay;
     }
 
@@ -665,14 +668,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         }
     }
 
-    function managerFeeBeneficiary() internal view returns (address) {
-        if (address(feeStrategy) == address(0)) {
-            return getRoleMember(MANAGER_ROLE, 0);
-        } else {
-            return feeStrategy.managerFeeBeneficiary();
-        }
-    }
-
     function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(MANAGER_ROLE) {
         require(_transferStrategy != transferStrategy, "FP:Value has to be different");
         _setTransferStrategy(_transferStrategy);
@@ -700,6 +695,16 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
             "FP:New endDate too big"
         );
         endDate = newEndDate;
+    }
+
+    function setManagerFeeBeneficiary(address newManagerFeeBeneficiary) external onlyRole(MANAGER_ROLE) {
+        require(managerFeeBeneficiary != newManagerFeeBeneficiary, "FP:New beneficiary has to be different");
+        _setManagerFeeBeneficiary(newManagerFeeBeneficiary);
+    }
+
+    function _setManagerFeeBeneficiary(address newManagerFeeBeneficiary) internal {
+        managerFeeBeneficiary = newManagerFeeBeneficiary;
+        emit ManagerFeeBeneficiaryChanged(newManagerFeeBeneficiary);
     }
 
     function _transfer(

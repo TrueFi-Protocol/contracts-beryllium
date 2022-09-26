@@ -21,7 +21,7 @@ contract FlexiblePortfolioHarness is FlexiblePortfolio {
     }
 
     function managerFeeBeneficiaryHarness() public view returns (address) {
-        return managerFeeBeneficiary();
+        return managerFeeBeneficiary;
     }
 
     function highestInstrumentEndDateHarness() public view returns (uint256) {
