@@ -19,6 +19,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     uint256 internal constant YEAR = 365 days;
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    bytes32 public constant STRATEGY_ADMIN_ROLE = keccak256("STRATEGY_ADMIN_ROLE");
     uint256 public constant BASIS_PRECISION = 10000;
 
     IERC20WithDecimals public asset;
@@ -73,6 +74,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
         __Upgradeable_init(_protocolConfig.protocolAddress(), _protocolConfig.pauserAddress());
         _grantRole(MANAGER_ROLE, _borrower);
+        _grantRole(STRATEGY_ADMIN_ROLE, _borrower);
         protocolConfig = _protocolConfig;
         endDate = block.timestamp + _duration;
         asset = _asset;
@@ -90,7 +92,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         return _decimals;
     }
 
-    function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) public onlyRole(MANAGER_ROLE) {
+    function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) public onlyRole(STRATEGY_ADMIN_ROLE) {
         require(_withdrawStrategy != withdrawStrategy, "AutomatedLineOfCredit: New withdraw strategy needs to be different");
         _setWithdrawStrategy(_withdrawStrategy);
     }
@@ -100,7 +102,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         withdrawStrategy = _withdrawStrategy;
     }
 
-    function setDepositStrategy(IDepositStrategy _depositStrategy) public onlyRole(MANAGER_ROLE) {
+    function setDepositStrategy(IDepositStrategy _depositStrategy) public onlyRole(STRATEGY_ADMIN_ROLE) {
         require(_depositStrategy != depositStrategy, "AutomatedLineOfCredit: New deposit strategy needs to be different");
         _setDepositStrategy(_depositStrategy);
     }
@@ -110,7 +112,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         depositStrategy = _depositStrategy;
     }
 
-    function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(MANAGER_ROLE) {
+    function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(STRATEGY_ADMIN_ROLE) {
         require(_transferStrategy != transferStrategy, "AutomatedLineOfCredit: New transfer strategy needs to be different");
         _setTransferStrategy(_transferStrategy);
     }

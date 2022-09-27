@@ -26,6 +26,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     uint256 internal constant YEAR = 365 days;
     uint256 public constant BASIS_PRECISION = 10000;
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    bytes32 public constant STRATEGY_ADMIN_ROLE = keccak256("STRATEGY_ADMIN_ROLE");
 
     IERC20WithDecimals public asset;
     uint8 internal _decimals;
@@ -83,6 +84,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         __Upgradeable_init(_protocolConfig.protocolAddress(), _protocolConfig.pauserAddress());
         __ERC20_init(tokenMetadata.name, tokenMetadata.symbol);
         _grantRole(MANAGER_ROLE, _manager);
+        _grantRole(STRATEGY_ADMIN_ROLE, _manager);
         _setManagerFeeBeneficiary(_manager);
         protocolConfig = _protocolConfig;
         endDate = block.timestamp + _duration;
@@ -104,7 +106,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return _decimals;
     }
 
-    function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) public onlyRole(MANAGER_ROLE) {
+    function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) public onlyRole(STRATEGY_ADMIN_ROLE) {
         require(_withdrawStrategy != withdrawStrategy, "FP:Value has to be different");
         _setWithdrawStrategy(_withdrawStrategy);
     }
@@ -114,7 +116,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         withdrawStrategy = _withdrawStrategy;
     }
 
-    function setDepositStrategy(IDepositStrategy _depositStrategy) public onlyRole(MANAGER_ROLE) {
+    function setDepositStrategy(IDepositStrategy _depositStrategy) public onlyRole(STRATEGY_ADMIN_ROLE) {
         require(_depositStrategy != depositStrategy, "FP:Value has to be different");
         _setDepositStrategy(_depositStrategy);
     }
@@ -405,7 +407,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit FeePaid(feeReceiver, _fee);
     }
 
-    function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(MANAGER_ROLE) {
+    function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
         require(_valuationStrategy != valuationStrategy, "FP:Value has to be different");
         valuationStrategy = _valuationStrategy;
         emit ValuationStrategyChanged(_valuationStrategy);
@@ -655,7 +657,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         }
     }
 
-    function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(MANAGER_ROLE) {
+    function setTransferStrategy(ITransferStrategy _transferStrategy) public onlyRole(STRATEGY_ADMIN_ROLE) {
         require(_transferStrategy != transferStrategy, "FP:Value has to be different");
         _setTransferStrategy(_transferStrategy);
     }
@@ -665,7 +667,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         transferStrategy = _transferStrategy;
     }
 
-    function setFeeStrategy(IFeeStrategy _feeStrategy) public onlyRole(MANAGER_ROLE) {
+    function setFeeStrategy(IFeeStrategy _feeStrategy) public onlyRole(STRATEGY_ADMIN_ROLE) {
         require(_feeStrategy != feeStrategy, "FP:Value has to be different");
         _setFeeStrategy(_feeStrategy);
     }
