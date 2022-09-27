@@ -203,10 +203,11 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
      */
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
         (bool depositAllowed, uint256 depositFee) = onDeposit(msg.sender, assets, receiver);
+        require(depositAllowed, "FP:Operation not allowed");
         require(assets >= depositFee, "FP:Fee bigger than assets");
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         uint256 assetsAfterDepositFee = assets - depositFee;
-        _checkDeposit(receiver, _totalAssets, assetsAfterDepositFee, depositAllowed);
+        _checkDeposit(receiver, _totalAssets, assetsAfterDepositFee);
 
         uint256 sharesToMint = _convertToShares(assetsAfterDepositFee, _totalAssets);
         require(sharesToMint > 0, "FP:Amount can't be 0");
@@ -219,21 +220,26 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     function _checkDeposit(
         address receiver,
         uint256 _totalAssets,
-        uint256 assets,
-        bool depositAllowed
+        uint256 assets
     ) internal view {
-        require(depositAllowed, "FP:Operation not allowed");
         require(assets + _totalAssets <= maxSize, "FP:Portfolio is full");
         require(block.timestamp < endDate, "FP:End date elapsed");
         require(receiver != address(this), "FP:Wrong receiver/owner");
     }
 
     function mint(uint256 shares, address receiver) public whenNotPaused returns (uint256) {
+        uint256 assets;
+        uint256 mintFee = 0;
+
+        if (address(depositStrategy) != address(0x00)) {
+            (assets, mintFee) = depositStrategy.onMint(msg.sender, shares, receiver);
+        }
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
-        uint256 assets = _previewMint(shares, _totalAssets);
-        (bool depositAllowed, uint256 mintFee) = onMint(msg.sender, assets, receiver);
+        if (address(depositStrategy) == address(0x00)) assets = _previewMint(shares, _totalAssets);
+
+        require(assets > 0, "FP:Operation not allowed");
         uint256 assetsWithMintFee = assets + mintFee;
-        _checkDeposit(receiver, _totalAssets, assets, depositAllowed);
+        _checkDeposit(receiver, _totalAssets, assets);
 
         _executeDeposit(receiver, shares, assetsWithMintFee, assets);
         _payFeeAndUpdate(protocolFee, managerFee, mintFee, virtualTokenBalance + assetsWithMintFee);
@@ -559,18 +565,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) internal returns (bool, uint256) {
         if (address(depositStrategy) != address(0x00)) {
             return depositStrategy.onDeposit(sender, assets, receiver);
-        } else {
-            return (true, 0);
-        }
-    }
-
-    function onMint(
-        address sender,
-        uint256 assets,
-        address receiver
-    ) internal returns (bool, uint256) {
-        if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.onMint(sender, assets, receiver);
         } else {
             return (true, 0);
         }

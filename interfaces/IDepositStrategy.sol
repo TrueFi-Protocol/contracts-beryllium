@@ -12,7 +12,7 @@ interface IDepositStrategy {
         address sender,
         uint256 amount,
         address receiver
-    ) external returns (bool, uint256);
+    ) external returns (uint256, uint256);
 
     function previewDepositFee(uint256 assetsBeforeFee) external view returns (uint256 fee);
 

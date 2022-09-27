@@ -291,10 +291,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(receiver != address(this), "AutomatedLineOfCredit: Cannot mint to portfolio");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
 
+        uint256 assets;
+        if (address(depositStrategy) != address(0x00)) {
+            (assets, ) = depositStrategy.onMint(msg.sender, shares, receiver);
+        }
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        uint256 assets = _previewMint(shares, _totalAssets);
-        (bool depositAllowed, ) = onDeposit(msg.sender, assets, receiver);
-        require(depositAllowed, "AutomatedLineOfCredit: Sender not allowed to mint");
+        if (address(depositStrategy) == address(0x00)) assets = _previewMint(shares, _totalAssets);
+
+        require(assets > 0, "AutomatedLineOfCredit: Sender not allowed to mint");
         require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Mint would cause portfolio to exceed max size");
 
         asset.safeTransferFrom(msg.sender, address(this), assets);
