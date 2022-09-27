@@ -16,7 +16,7 @@ interface IDepositStrategy {
 
     function previewDepositFee(uint256 assetsBeforeFee) external view returns (uint256 fee);
 
-    function previewMintFee(uint256 assetsBeforeFee) external view returns (uint256 fee);
+    function previewMint(uint256 shares) external view returns (uint256 assets);
 
     function maxDeposit(address sender) external view returns (uint256 assets);
 }

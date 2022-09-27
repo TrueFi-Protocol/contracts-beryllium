@@ -5,7 +5,7 @@ import {IERC20WithDecimals} from "./IERC20WithDecimals.sol";
 interface IERC4626 {
     function asset() external returns (IERC20WithDecimals asset);
 
-    function totalAssets() external returns (uint256 totalManagedAssets);
+    function totalAssets() external view returns (uint256 totalManagedAssets);
 
     function convertToShares(uint256 assets) external returns (uint256 shares);
 

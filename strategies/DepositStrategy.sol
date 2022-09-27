@@ -18,22 +18,26 @@ contract DepositStrategy is IDepositStrategy {
         address,
         uint256 shares,
         address
-    ) external returns (uint256, uint256) {
-        uint256 totalAssets = IERC4626(msg.sender).totalAssets();
-        uint256 totalSupply = IERC20WithDecimals(msg.sender).totalSupply();
-        if (totalSupply == 0) {
-            return (shares, 0);
-        } else {
-            return (Math.ceilDiv((shares * totalAssets), totalSupply), 0);
-        }
+    ) external view returns (uint256, uint256) {
+        return (_previewMint(shares), 0);
     }
 
     function previewDepositFee(uint256) external pure returns (uint256) {
         return 0;
     }
 
-    function previewMintFee(uint256) external pure returns (uint256) {
-        return 0;
+    function previewMint(uint256 shares) external view returns (uint256) {
+        return _previewMint(shares);
+    }
+
+    function _previewMint(uint256 shares) internal view returns (uint256) {
+        uint256 totalAssets = IERC4626(msg.sender).totalAssets();
+        uint256 totalSupply = IERC20WithDecimals(msg.sender).totalSupply();
+        if (totalSupply == 0) {
+            return shares;
+        } else {
+            return Math.ceilDiv((shares * totalAssets), totalSupply);
+        }
     }
 
     function maxDeposit(address) external pure returns (uint256) {
