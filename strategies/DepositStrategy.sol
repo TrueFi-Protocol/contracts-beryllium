@@ -8,10 +8,10 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 contract DepositStrategy is IDepositStrategy {
     function onDeposit(
         address,
-        uint256,
+        uint256 assets,
         address
-    ) external pure returns (bool, uint256) {
-        return (true, 0);
+    ) external returns (uint256, uint256) {
+        return (IERC4626(msg.sender).convertToShares(assets), 0);
     }
 
     function onMint(
