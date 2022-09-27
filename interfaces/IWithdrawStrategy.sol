@@ -13,10 +13,10 @@ interface IWithdrawStrategy {
 
     function onRedeem(
         address sender,
-        uint256 amount,
+        uint256 shares,
         address receiver,
         address owner
-    ) external returns (bool, uint256);
+    ) external returns (uint256 assets, uint256 fee);
 
     function previewWithdrawFee(uint256 assetsBeforeFee) external view returns (uint256);
 

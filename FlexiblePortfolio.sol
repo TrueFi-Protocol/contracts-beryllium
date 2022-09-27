@@ -284,17 +284,22 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) public virtual whenNotPaused returns (uint256) {
+        uint256 assets;
+        uint256 redeemFee;
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
-        uint256 assets = _convertToAssets(shares, _totalAssets);
-        (bool withdrawAllowed, uint256 redeemFee) = onRedeem(msg.sender, assets, receiver, owner);
+        if (address(withdrawStrategy) != address(0x00)) {
+            (assets, redeemFee) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
+        } else {
+            assets = _convertToAssets(shares, _totalAssets);
+        }
+
         require(assets >= redeemFee, "FP:Fee bigger than assets");
-        require(withdrawAllowed, "FP:Operation not allowed");
+        require(assets > 0, "FP:Operation not allowed");
         require(assets + protocolFee + managerFee <= virtualTokenBalance, "FP:Not enough liquidity");
 
-        uint256 assetsAfterRedeemFee = assets - redeemFee;
-        _executeWithdraw(owner, receiver, shares, assetsAfterRedeemFee);
-        _payFeeAndUpdate(protocolFee, managerFee, redeemFee, virtualTokenBalance - assetsAfterRedeemFee);
-        return assetsAfterRedeemFee;
+        _executeWithdraw(owner, receiver, shares, assets);
+        _payFeeAndUpdate(protocolFee, managerFee, redeemFee, virtualTokenBalance - assets);
+        return assets;
     }
 
     function getMaxSharesFromWithdrawStrategy(address owner) internal view returns (uint256) {
@@ -540,19 +545,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) internal returns (bool, uint256) {
         if (address(withdrawStrategy) != address(0x00)) {
             return withdrawStrategy.onWithdraw(sender, amount, receiver, owner);
-        } else {
-            return (true, 0);
-        }
-    }
-
-    function onRedeem(
-        address sender,
-        uint256 amount,
-        address receiver,
-        address owner
-    ) internal returns (bool, uint256) {
-        if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.onRedeem(sender, amount, receiver, owner);
         } else {
             return (true, 0);
         }

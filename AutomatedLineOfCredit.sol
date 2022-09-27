@@ -230,21 +230,27 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(owner != address(this), "AutomatedLineOfCredit: Cannot redeem from portfolio");
         require(shares > 0, "AutomatedLineOfCredit: Cannot redeem 0 shares");
 
+        uint256 assets;
+        if (address(withdrawStrategy) != address(0x00)) {
+            (assets, ) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
+        }
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        uint256 assetAmount = _convertToAssets(shares, _totalAssets);
+        if (address(withdrawStrategy) == address(0x00)) {
+            assets = _convertToAssets(shares, _totalAssets);
+        }
+        require(assets > 0, "AutomatedLineOfCredit: Redeem not allowed");
+
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
-        require(assetAmount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Redeemed assets exceed portfolio balance");
-        (bool withdrawAllowed, ) = onRedeem(msg.sender, assetAmount, receiver, owner);
-        require(withdrawAllowed, "AutomatedLineOfCredit: Redeem not allowed");
+        require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Redeemed assets exceed portfolio balance");
 
         _burnFrom(owner, msg.sender, shares);
-        asset.safeTransfer(receiver, assetAmount);
-        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - assetAmount);
+        asset.safeTransfer(receiver, assets);
+        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - assets);
 
         updateLastProtocolFeeRate();
-        emit Withdraw(msg.sender, receiver, owner, assetAmount, shares);
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
-        return assetAmount;
+        return assets;
     }
 
     function _burnFrom(
@@ -544,19 +550,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     ) internal returns (bool, uint256) {
         if (address(withdrawStrategy) != address(0x00)) {
             return withdrawStrategy.onWithdraw(sender, amount, receiver, owner);
-        } else {
-            return (true, 0);
-        }
-    }
-
-    function onRedeem(
-        address sender,
-        uint256 amount,
-        address receiver,
-        address owner
-    ) internal returns (bool, uint256) {
-        if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.onRedeem(sender, amount, receiver, owner);
         } else {
             return (true, 0);
         }
