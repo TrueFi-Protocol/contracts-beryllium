@@ -2,14 +2,14 @@
 pragma solidity ^0.8.10;
 
 interface IWithdrawStrategy {
-    function maxWithdraw(address owner) external view returns (uint256);
+    function maxWithdraw(address owner) external view returns (uint256 assets);
 
     function onWithdraw(
         address sender,
         uint256 amount,
         address receiver,
         address owner
-    ) external returns (bool, uint256);
+    ) external returns (uint256 shares, uint256 fee);
 
     function onRedeem(
         address sender,
@@ -20,5 +20,5 @@ interface IWithdrawStrategy {
 
     function previewWithdrawFee(uint256 assetsBeforeFee) external view returns (uint256);
 
-    function previewRedeem(uint256 shares) external view returns (uint256);
+    function previewRedeem(uint256 shares) external view returns (uint256 assets);
 }

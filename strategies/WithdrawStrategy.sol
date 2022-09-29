@@ -12,11 +12,17 @@ contract WithdrawStrategy is IWithdrawStrategy {
 
     function onWithdraw(
         address,
-        uint256,
+        uint256 assets,
         address,
         address
-    ) external pure returns (bool, uint256) {
-        return (true, 0);
+    ) external view returns (uint256, uint256) {
+        uint256 totalAssets = IERC4626(msg.sender).totalAssets();
+        uint256 totalSupply = IERC20WithDecimals(msg.sender).totalSupply();
+        if (totalAssets == 0) {
+            return (0, 0);
+        } else {
+            return (Math.ceilDiv((assets * totalSupply), totalAssets), 0);
+        }
     }
 
     function onRedeem(
@@ -24,7 +30,7 @@ contract WithdrawStrategy is IWithdrawStrategy {
         uint256 shares,
         address,
         address
-    ) external returns (uint256, uint256) {
+    ) external view returns (uint256, uint256) {
         uint256 totalAssets = IERC4626(msg.sender).totalAssets();
         uint256 totalSupply = IERC20WithDecimals(msg.sender).totalSupply();
         if (totalSupply == 0) {

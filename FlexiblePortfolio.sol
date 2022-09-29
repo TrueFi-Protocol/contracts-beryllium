@@ -545,19 +545,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         }
     }
 
-    function onWithdraw(
-        address sender,
-        uint256 amount,
-        address receiver,
-        address owner
-    ) internal returns (bool, uint256) {
-        if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.onWithdraw(sender, amount, receiver, owner);
-        } else {
-            return (true, 0);
-        }
-    }
-
     function getMaxDepositFromStrategy(address receiver) internal view returns (uint256) {
         if (address(depositStrategy) != address(0x00)) {
             return depositStrategy.maxDeposit(receiver);
@@ -609,11 +596,17 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address owner
     ) public whenNotPaused returns (uint256) {
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
-        (bool withdrawAllowed, uint256 withdrawFee) = onWithdraw(msg.sender, assets, receiver, owner);
-        uint256 shares = _previewWithdraw(assets + withdrawFee, _totalAssets);
-        require(withdrawAllowed, "FP:Operation not allowed");
-        require(receiver != address(this) && owner != address(this), "FP:Wrong receiver/owner");
+        uint256 shares;
+        uint256 withdrawFee;
+        if (address(withdrawStrategy) != address(0x00)) {
+            (shares, withdrawFee) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
+        } else {
+            shares = _previewWithdraw(assets, _totalAssets);
+        }
+
         require(assets > 0, "FP:Amount can't be 0");
+        require(shares > 0, "FP:Operation not allowed");
+        require(receiver != address(this) && owner != address(this), "FP:Wrong receiver/owner");
         require(assets + withdrawFee + protocolFee + managerFee <= virtualTokenBalance, "FP:Not enough liquidity");
 
         _executeWithdraw(owner, receiver, shares, assets);

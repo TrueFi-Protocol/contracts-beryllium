@@ -280,12 +280,18 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(owner != address(this), "AutomatedLineOfCredit: Cannot withdraw from portfolio");
         require(assets > 0, "AutomatedLineOfCredit: Cannot withdraw 0 assets");
 
+        uint256 shares;
+        if (address(withdrawStrategy) != address(0x00)) {
+            (shares, ) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
+        }
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        uint256 shares = _previewWithdraw(assets, _totalAssets);
+        if (address(withdrawStrategy) == address(0x00)) {
+            shares = _previewWithdraw(assets, _totalAssets);
+        }
+
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
         require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds portfolio liquidity");
-        (bool withdrawAllowed, ) = onWithdraw(msg.sender, assets, receiver, owner);
-        require(withdrawAllowed, "AutomatedLineOfCredit: Withdraw not allowed");
+        require(shares > 0, "AutomatedLineOfCredit: Withdraw not allowed");
 
         _burnFrom(owner, msg.sender, shares);
         asset.safeTransfer(receiver, assets);
@@ -560,19 +566,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     function updateLastProtocolFeeRate() internal {
         lastProtocolFeeRate = protocolConfig.protocolFeeRate();
-    }
-
-    function onWithdraw(
-        address sender,
-        uint256 amount,
-        address receiver,
-        address owner
-    ) internal returns (bool, uint256) {
-        if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.onWithdraw(sender, amount, receiver, owner);
-        } else {
-            return (true, 0);
-        }
     }
 
     function getMaxWithdrawFromStrategy(address owner) internal view returns (uint256) {
