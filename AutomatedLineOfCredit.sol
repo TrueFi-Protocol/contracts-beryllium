@@ -5,7 +5,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
-import {IAutomatedLineOfCredit, AutomatedLineOfCreditStatus, IERC4626} from "./interfaces/IAutomatedLineOfCredit.sol";
+import {IAutomatedLineOfCredit, AutomatedLineOfCreditStatus} from "./interfaces/IAutomatedLineOfCredit.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IDepositStrategy} from "./interfaces/IDepositStrategy.sol";
 import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
@@ -493,7 +493,18 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function maxMint(address receiver) public view returns (uint256) {
-        return convertToShares(maxDeposit(receiver));
+        if (paused() || getStatus() != AutomatedLineOfCreditStatus.Open) {
+            return 0;
+        }
+        uint256 _totalAssets = totalAssets();
+        if (_totalAssets >= maxSize) {
+            return 0;
+        }
+        if (address(depositStrategy) != address(0x00)) {
+            return depositStrategy.maxMint(receiver);
+        } else {
+            return convertToShares(maxSize - totalAssets());
+        }
     }
 
     function previewRedeem(uint256 shares) public view virtual returns (uint256) {

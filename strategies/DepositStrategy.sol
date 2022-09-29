@@ -2,7 +2,7 @@
 pragma solidity ^0.8.10;
 
 import {IDepositStrategy} from "../interfaces/IDepositStrategy.sol";
-import {IERC4626, IERC20WithDecimals} from "../interfaces/IERC4626.sol";
+import {IPortfolio, IERC20WithDecimals} from "../interfaces/IPortfolio.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract DepositStrategy is IDepositStrategy {
@@ -11,7 +11,7 @@ contract DepositStrategy is IDepositStrategy {
         uint256 assets,
         address
     ) external returns (uint256, uint256) {
-        return (IERC4626(msg.sender).convertToShares(assets), 0);
+        return (IPortfolio(msg.sender).convertToShares(assets), 0);
     }
 
     function onMint(
@@ -31,7 +31,7 @@ contract DepositStrategy is IDepositStrategy {
     }
 
     function _previewMint(uint256 shares) internal view returns (uint256) {
-        uint256 totalAssets = IERC4626(msg.sender).totalAssets();
+        uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
         uint256 totalSupply = IERC20WithDecimals(msg.sender).totalSupply();
         if (totalSupply == 0) {
             return shares;
@@ -42,5 +42,9 @@ contract DepositStrategy is IDepositStrategy {
 
     function maxDeposit(address) external pure returns (uint256) {
         return type(uint256).max;
+    }
+
+    function maxMint(address) external view returns (uint256) {
+        return IPortfolio(msg.sender).convertToShares(IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets());
     }
 }

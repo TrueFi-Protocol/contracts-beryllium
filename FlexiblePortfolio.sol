@@ -474,7 +474,18 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function maxMint(address receiver) public view returns (uint256) {
-        return convertToShares(maxDeposit(receiver));
+        if (paused() || block.timestamp >= endDate) {
+            return 0;
+        }
+        uint256 _totalAssets = totalAssets();
+        if (_totalAssets >= maxSize) {
+            return 0;
+        }
+        if (address(depositStrategy) != address(0x00)) {
+            return depositStrategy.maxMint(receiver);
+        } else {
+            return convertToShares(maxSize - totalAssets());
+        }
     }
 
     function previewRedeem(uint256 shares) public view virtual returns (uint256) {
@@ -676,7 +687,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function setManagerFeeBeneficiary(address newManagerFeeBeneficiary) external onlyRole(MANAGER_ROLE) {
-        require(managerFeeBeneficiary != newManagerFeeBeneficiary, "FP:New beneficiary has to be different");
+        require(managerFeeBeneficiary != newManagerFeeBeneficiary, "FP:Value has to be different");
         _setManagerFeeBeneficiary(newManagerFeeBeneficiary);
     }
 
