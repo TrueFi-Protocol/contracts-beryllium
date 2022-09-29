@@ -5,7 +5,7 @@ import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgrad
 import {IERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/interfaces/IERC165Upgradeable.sol";
 import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/interfaces/IERC721Upgradeable.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Upgradeable} from "./access/Upgradeable.sol";
 import {IFixedInterestOnlyLoans, FixedInterestOnlyLoanStatus} from "./interfaces/IFixedInterestOnlyLoans.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
@@ -47,7 +47,7 @@ contract FixedInterestOnlyLoans is ERC721Upgradeable, Upgradeable, IFixedInteres
         return loans[instrumentId].principal;
     }
 
-    function asset(uint256 instrumentId) external view returns (IERC20WithDecimals) {
+    function asset(uint256 instrumentId) external view returns (IERC20Metadata) {
         return loans[instrumentId].asset;
     }
 
@@ -104,7 +104,7 @@ contract FixedInterestOnlyLoans is ERC721Upgradeable, Upgradeable, IFixedInteres
     }
 
     function issueLoan(
-        IERC20WithDecimals _asset,
+        IERC20Metadata _asset,
         uint256 _principal,
         uint16 _periodCount,
         uint256 _periodPayment,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IERC20WithDecimals} from "../../interfaces/IERC20WithDecimals.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IDebtInstrument} from "../../interfaces/IDebtInstrument.sol";
 
 enum BulletLoanStatus {
@@ -15,7 +15,7 @@ enum BulletLoanStatus {
 
 interface IBulletLoans is IDebtInstrument {
     struct LoanMetadata {
-        IERC20WithDecimals asset;
+        IERC20Metadata asset;
         BulletLoanStatus status;
         uint64 duration;
         uint64 repaymentDate;
@@ -29,7 +29,7 @@ interface IBulletLoans is IDebtInstrument {
         external
         view
         returns (
-            IERC20WithDecimals,
+            IERC20Metadata,
             BulletLoanStatus,
             uint64,
             uint64,
@@ -40,7 +40,7 @@ interface IBulletLoans is IDebtInstrument {
         );
 
     function createLoan(
-        IERC20WithDecimals _asset,
+        IERC20Metadata _asset,
         uint256 principal,
         uint256 totalDebt,
         uint64 duration,

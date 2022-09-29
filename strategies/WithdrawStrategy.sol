@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IERC4626, IERC20WithDecimals} from "../interfaces/IERC4626.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IPortfolio} from "../interfaces/IPortfolio.sol";
 import {IWithdrawStrategy} from "../interfaces/IWithdrawStrategy.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -16,8 +17,8 @@ contract WithdrawStrategy is IWithdrawStrategy {
         address,
         address
     ) external view returns (uint256, uint256) {
-        uint256 totalAssets = IERC4626(msg.sender).totalAssets();
-        uint256 totalSupply = IERC20WithDecimals(msg.sender).totalSupply();
+        uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
+        uint256 totalSupply = IERC20Metadata(msg.sender).totalSupply();
         if (totalAssets == 0) {
             return (0, 0);
         } else {
@@ -31,8 +32,8 @@ contract WithdrawStrategy is IWithdrawStrategy {
         address,
         address
     ) external view returns (uint256, uint256) {
-        uint256 totalAssets = IERC4626(msg.sender).totalAssets();
-        uint256 totalSupply = IERC20WithDecimals(msg.sender).totalSupply();
+        uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
+        uint256 totalSupply = IERC20Metadata(msg.sender).totalSupply();
         if (totalSupply == 0) {
             return (0, 0);
         } else {
@@ -41,7 +42,7 @@ contract WithdrawStrategy is IWithdrawStrategy {
     }
 
     function previewRedeem(uint256 shares) external view returns (uint256) {
-        return IERC4626(msg.sender).convertToAssets(shares);
+        return IPortfolio(msg.sender).convertToAssets(shares);
     }
 
     function previewWithdrawFee(uint256) external pure returns (uint256) {

@@ -7,7 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
-import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IFlexiblePortfolio} from "./interfaces/IFlexiblePortfolio.sol";
 import {IDebtInstrument} from "./interfaces/IDebtInstrument.sol";
 import {IERC4626} from "./interfaces/IERC4626.sol";
@@ -20,7 +20,7 @@ import {IFeeStrategy} from "./interfaces/IFeeStrategy.sol";
 import {Upgradeable} from "./access/Upgradeable.sol";
 
 contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable {
-    using SafeERC20 for IERC20WithDecimals;
+    using SafeERC20 for IERC20Metadata;
     using Address for address;
 
     uint256 internal constant YEAR = 365 days;
@@ -28,7 +28,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant STRATEGY_ADMIN_ROLE = keccak256("STRATEGY_ADMIN_ROLE");
 
-    IERC20WithDecimals public asset;
+    IERC20Metadata public asset;
     uint8 internal _decimals;
     uint256 public endDate;
     uint256 public maxSize;
@@ -73,7 +73,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     function initialize(
         IProtocolConfig _protocolConfig,
         uint256 _duration,
-        IERC20WithDecimals _asset,
+        IERC20Metadata _asset,
         address _manager,
         uint256 _maxSize,
         Strategies calldata _strategies,

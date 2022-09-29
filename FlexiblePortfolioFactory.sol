@@ -2,14 +2,14 @@
 pragma solidity ^0.8.10;
 
 import {IFlexiblePortfolio} from "./interfaces/IFlexiblePortfolio.sol";
-import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IDebtInstrument} from "./interfaces/IDebtInstrument.sol";
 import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
 import {PortfolioFactory} from "./PortfolioFactory.sol";
 
 contract FlexiblePortfolioFactory is PortfolioFactory {
     function createPortfolio(
-        IERC20WithDecimals _asset,
+        IERC20Metadata _asset,
         uint256 _duration,
         uint256 _maxSize,
         IFlexiblePortfolio.Strategies calldata strategies,

@@ -4,7 +4,7 @@ pragma solidity ^0.8.10;
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAutomatedLineOfCredit, AutomatedLineOfCreditStatus} from "./interfaces/IAutomatedLineOfCredit.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IDepositStrategy} from "./interfaces/IDepositStrategy.sol";
@@ -15,14 +15,14 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 import {Upgradeable} from "./access/Upgradeable.sol";
 
 contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgradeable {
-    using SafeERC20 for IERC20WithDecimals;
+    using SafeERC20 for IERC20Metadata;
 
     uint256 internal constant YEAR = 365 days;
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant STRATEGY_ADMIN_ROLE = keccak256("STRATEGY_ADMIN_ROLE");
     uint256 public constant BASIS_PRECISION = 10000;
 
-    IERC20WithDecimals public asset;
+    IERC20Metadata public asset;
     uint8 internal _decimals;
     uint256 public endDate;
     uint256 public maxSize;
@@ -55,7 +55,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     function initialize(
         IProtocolConfig _protocolConfig,
         uint256 _duration,
-        IERC20WithDecimals _asset,
+        IERC20Metadata _asset,
         address _borrower,
         uint256 _maxSize,
         InterestRateParameters memory _interestRateParameters,
