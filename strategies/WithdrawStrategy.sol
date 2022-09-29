@@ -34,8 +34,8 @@ contract WithdrawStrategy is IWithdrawStrategy {
         }
     }
 
-    function previewRedeemFee(uint256) external pure returns (uint256) {
-        return 0;
+    function previewRedeem(uint256 shares) external view returns (uint256) {
+        return IERC4626(msg.sender).convertToAssets(shares);
     }
 
     function previewWithdrawFee(uint256) external pure returns (uint256) {

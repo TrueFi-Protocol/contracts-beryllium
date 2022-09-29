@@ -20,5 +20,5 @@ interface IWithdrawStrategy {
 
     function previewWithdrawFee(uint256 assetsBeforeFee) external view returns (uint256);
 
-    function previewRedeemFee(uint256 shares) external view returns (uint256);
+    function previewRedeem(uint256 shares) external view returns (uint256);
 }
