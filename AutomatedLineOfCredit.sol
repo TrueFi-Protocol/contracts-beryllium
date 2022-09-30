@@ -481,7 +481,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
-        return convertToShares(assets);
+        if (address(depositStrategy) != address(0x00)) {
+            return depositStrategy.previewDeposit(assets);
+        } else {
+            return convertToShares(assets);
+        }
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {

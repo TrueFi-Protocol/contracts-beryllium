@@ -186,16 +186,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
         require(block.timestamp < endDate, "FP:End date elapsed");
-        uint256 fee = _getPreviewDepositFee(assets);
-        uint256 assetsAfterFee = assets > fee ? assets - fee : 0;
-        return convertToShares(assetsAfterFee);
-    }
-
-    function _getPreviewDepositFee(uint256 assets) internal view returns (uint256) {
         if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.previewDepositFee(assets);
+            return depositStrategy.previewDeposit(assets);
         } else {
-            return 0;
+            return convertToShares(assets);
         }
     }
 

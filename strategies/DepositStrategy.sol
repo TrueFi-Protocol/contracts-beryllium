@@ -3,6 +3,7 @@ pragma solidity ^0.8.10;
 
 import {IDepositStrategy} from "../interfaces/IDepositStrategy.sol";
 import {IPortfolio} from "../interfaces/IPortfolio.sol";
+import {IPortfolio, IERC4626} from "../interfaces/IPortfolio.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -23,8 +24,8 @@ contract DepositStrategy is IDepositStrategy {
         return (_previewMint(shares), 0);
     }
 
-    function previewDepositFee(uint256) external pure returns (uint256) {
-        return 0;
+    function previewDeposit(uint256 assets) external view returns (uint256 shares) {
+        return IERC4626(msg.sender).convertToShares(assets);
     }
 
     function previewMint(uint256 shares) external view returns (uint256) {
