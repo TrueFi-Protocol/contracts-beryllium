@@ -20,8 +20,8 @@ contract FlexiblePortfolioHarness is FlexiblePortfolio {
         return getTotalAssetsAndFee();
     }
 
-    function managerFeeBeneficiaryHarness() public view returns (address) {
-        return managerFeeBeneficiary;
+    function _previewMintHarness(uint256 shares, uint256 _totalAssets) public view returns (uint256) {
+        return _previewMint(shares, _totalAssets);
     }
 
     function highestInstrumentEndDateHarness() public view returns (uint256) {
@@ -30,6 +30,10 @@ contract FlexiblePortfolioHarness is FlexiblePortfolio {
 
     function lastUpdateTimeHarness() public view returns (uint256) {
         return lastUpdateTime;
+    }
+
+    function _convertToSharesHarness(uint256 assets, uint256 _totalAssets) public view returns (uint256) {
+        return _convertToShares(assets, _totalAssets);
     }
 
     function payManagerFeeHarness(
