@@ -12,7 +12,7 @@ contract DepositStrategy is IDepositStrategy {
         address,
         uint256 assets,
         address
-    ) external returns (uint256, uint256) {
+    ) external view returns (uint256, uint256) {
         return (IPortfolio(msg.sender).convertToShares(assets), 0);
     }
 

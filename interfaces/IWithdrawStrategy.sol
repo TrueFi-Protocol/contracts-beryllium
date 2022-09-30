@@ -4,6 +4,8 @@ pragma solidity ^0.8.10;
 interface IWithdrawStrategy {
     function maxWithdraw(address owner) external view returns (uint256 assets);
 
+    function maxRedeem(address owner) external view returns (uint256 shares);
+
     function onWithdraw(
         address sender,
         uint256 amount,

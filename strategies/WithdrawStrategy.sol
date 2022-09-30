@@ -11,6 +11,10 @@ contract WithdrawStrategy is IWithdrawStrategy {
         return type(uint256).max;
     }
 
+    function maxRedeem(address) external view returns (uint256) {
+        return IPortfolio(msg.sender).convertToShares(IPortfolio(msg.sender).liquidAssets());
+    }
+
     function onWithdraw(
         address,
         uint256 assets,
