@@ -522,7 +522,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function previewRedeem(uint256 shares) public view virtual returns (uint256) {
-        return convertToAssets(shares);
+        if (address(withdrawStrategy) != address(0x00)) {
+            return withdrawStrategy.previewRedeem(shares);
+        } else {
+            return convertToAssets(shares);
+        }
     }
 
     function totalDebt() public view returns (uint256) {
