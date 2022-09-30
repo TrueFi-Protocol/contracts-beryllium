@@ -9,4 +9,6 @@ import {ITransferStrategy} from "./ITransferStrategy.sol";
 
 interface IPortfolio is IERC4626 {
     function maxSize() external view returns (uint256);
+
+    function liquidAssets() external view returns (uint256);
 }

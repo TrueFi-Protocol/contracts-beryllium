@@ -440,6 +440,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return _totalAssets;
     }
 
+    function liquidAssets() external view returns (uint256) {
+        (uint256 accruedProtocolFee, uint256 accruedManagerFee) = accruedFee();
+        uint256 dueFees = accruedProtocolFee + accruedManagerFee + unpaidManagerFee + unpaidProtocolFee;
+        return virtualTokenBalance > dueFees ? virtualTokenBalance - dueFees : 0;
+    }
+
     function getTotalAssetsAndFee()
         internal
         view
@@ -564,7 +570,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) internal {
         if (spender != owner) {
             uint256 allowed = allowance(owner, msg.sender);
-            require(allowed >= shares, "FP:Not enough allowance");
+            require(allowed >= shares, "ERC20: decreased allowance below zero");
             _approve(owner, msg.sender, allowed - shares);
         }
         _burn(owner, shares);
@@ -626,7 +632,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
-    function accruedFee() external view returns (uint256 accruedProtocolFee, uint256 accruedManagerFee) {
+    function accruedFee() public view returns (uint256 accruedProtocolFee, uint256 accruedManagerFee) {
         return _accruedFee(totalAssetsBeforeAccruedFee());
     }
 

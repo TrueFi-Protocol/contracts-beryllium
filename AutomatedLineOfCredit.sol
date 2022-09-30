@@ -145,6 +145,10 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         return assets;
     }
 
+    function liquidAssets() external view returns (uint256) {
+        return totalAssets() - totalDebt();
+    }
+
     function repay(uint256 amount) public whenNotPaused {
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
         require(msg.sender != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
