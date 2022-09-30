@@ -7,8 +7,8 @@ import {IWithdrawStrategy} from "../interfaces/IWithdrawStrategy.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract WithdrawStrategy is IWithdrawStrategy {
-    function maxWithdraw(address) external pure returns (uint256) {
-        return type(uint256).max;
+    function maxWithdraw(address owner) external view returns (uint256) {
+        return IPortfolio(msg.sender).convertToAssets(IERC20Metadata(msg.sender).balanceOf(owner));
     }
 
     function maxRedeem(address) external view returns (uint256) {

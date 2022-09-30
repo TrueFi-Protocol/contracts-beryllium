@@ -430,9 +430,12 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         if (paused()) {
             return 0;
         }
-        uint256 maxStrategyWithdraw = getMaxWithdrawFromStrategy(owner);
-        uint256 maxUserWithdraw = Math.min(convertToAssets(balanceOf(owner)), maxStrategyWithdraw);
-        return Math.min(maxUserWithdraw, virtualTokenBalance);
+        uint256 availableLiquidity = liquidAssets();
+        if (address(withdrawStrategy) != address(0x00)) {
+            return Math.min(availableLiquidity, withdrawStrategy.maxWithdraw(owner));
+        } else {
+            return Math.min(availableLiquidity, convertToAssets(balanceOf(owner)));
+        }
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
@@ -572,14 +575,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     function updateLastProtocolFeeRate() internal {
         lastProtocolFeeRate = protocolConfig.protocolFeeRate();
-    }
-
-    function getMaxWithdrawFromStrategy(address owner) internal view returns (uint256) {
-        if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.maxWithdraw(owner);
-        } else {
-            return type(uint256).max;
-        }
     }
 
     function getMaxDepositFromStrategy(address receiver) internal view returns (uint256) {
