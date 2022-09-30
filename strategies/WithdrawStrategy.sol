@@ -49,7 +49,13 @@ contract WithdrawStrategy is IWithdrawStrategy {
         return IPortfolio(msg.sender).convertToAssets(shares);
     }
 
-    function previewWithdrawFee(uint256) external pure returns (uint256) {
-        return 0;
+    function previewWithdraw(uint256 assets) external view returns (uint256) {
+        uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
+        uint256 totalSupply = IERC20Metadata(msg.sender).totalSupply();
+        if (totalAssets == 0) {
+            return 0;
+        } else {
+            return Math.ceilDiv(assets * totalSupply, totalAssets);
+        }
     }
 }

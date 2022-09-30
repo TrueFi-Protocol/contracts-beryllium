@@ -439,8 +439,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        uint256 _totalAssets = totalAssets();
-        return _previewWithdraw(assets, _totalAssets);
+        if (address(withdrawStrategy) != address(0x00)) {
+            return withdrawStrategy.previewWithdraw(assets);
+        } else {
+            return _previewWithdraw(assets, totalAssets());
+        }
     }
 
     function _previewWithdraw(uint256 assets, uint256 _totalAssets) internal view returns (uint256) {

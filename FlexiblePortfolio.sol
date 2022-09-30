@@ -556,14 +556,10 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        return _previewWithdraw(assets + _getPreviewWithdrawFee(assets), totalAssets());
-    }
-
-    function _getPreviewWithdrawFee(uint256 assets) internal view returns (uint256) {
         if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.previewWithdrawFee(assets);
+            return withdrawStrategy.previewWithdraw(assets);
         } else {
-            return 0;
+            return _previewWithdraw(assets, totalAssets());
         }
     }
 

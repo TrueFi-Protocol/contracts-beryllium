@@ -20,7 +20,7 @@ interface IWithdrawStrategy {
         address owner
     ) external returns (uint256 assets, uint256 fee);
 
-    function previewWithdrawFee(uint256 assetsBeforeFee) external view returns (uint256);
+    function previewWithdraw(uint256 assets) external view returns (uint256 shares);
 
     function previewRedeem(uint256 shares) external view returns (uint256 assets);
 }
