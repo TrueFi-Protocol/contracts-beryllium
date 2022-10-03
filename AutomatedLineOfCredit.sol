@@ -479,9 +479,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return assets;
-        } else if (_totalAssets == 0) {
-            return 0;
         } else {
+            assert(_totalAssets != 0);
             return (assets * _totalSupply) / _totalAssets;
         }
     }
