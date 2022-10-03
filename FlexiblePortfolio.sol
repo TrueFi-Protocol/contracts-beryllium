@@ -498,11 +498,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         if (paused() || block.timestamp >= endDate) {
             return 0;
         }
+        if (address(depositStrategy) != address(0x00)) {
+            return depositStrategy.maxDeposit(receiver);
+        }
         uint256 _totalAssets = totalAssets();
         if (_totalAssets >= maxSize) {
             return 0;
         } else {
-            return Math.min(maxSize - _totalAssets, getMaxDepositFromStrategy(receiver));
+            return maxSize - _totalAssets;
         }
     }
 

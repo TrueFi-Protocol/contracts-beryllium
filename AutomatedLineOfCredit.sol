@@ -421,8 +421,15 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     function maxDeposit(address receiver) external view returns (uint256) {
         if (paused() || getStatus() != AutomatedLineOfCreditStatus.Open) {
             return 0;
+        }
+        if (address(depositStrategy) != address(0x00)) {
+            return depositStrategy.maxDeposit(receiver);
+        }
+        uint256 _totalAssets = totalAssets();
+        if (_totalAssets >= maxSize) {
+            return 0;
         } else {
-            return Math.min(maxSize - totalAssets(), getMaxDepositFromStrategy(receiver));
+            return maxSize - _totalAssets;
         }
     }
 

@@ -8,6 +8,23 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract DepositStrategy is IDepositStrategy {
+    function maxDeposit(address sender) external view returns (uint256) {
+        return _maxDeposit(sender);
+    }
+
+    function _maxDeposit(address) internal view returns (uint256) {
+        uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
+        uint256 maxSize = IPortfolio(msg.sender).maxSize();
+        if (totalAssets >= maxSize) {
+            return 0;
+        }
+        return maxSize - totalAssets;
+    }
+
+    function maxMint(address sender) external view returns (uint256) {
+        return IPortfolio(msg.sender).convertToShares(_maxDeposit(sender));
+    }
+
     function onDeposit(
         address,
         uint256 assets,
@@ -40,13 +57,5 @@ contract DepositStrategy is IDepositStrategy {
         } else {
             return Math.ceilDiv((shares * totalAssets), totalSupply);
         }
-    }
-
-    function maxDeposit(address) external pure returns (uint256) {
-        return type(uint256).max;
-    }
-
-    function maxMint(address) external view returns (uint256) {
-        return IPortfolio(msg.sender).convertToShares(IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets());
     }
 }
