@@ -20,9 +20,9 @@ contract FlexiblePortfolioHarness is FlexiblePortfolio {
         return getTotalAssetsAndFee();
     }
 
-    function _previewMintHarness(uint256 shares, uint256 _totalAssets) public view returns (uint256) {
-        return _previewMint(shares, _totalAssets);
-    }
+    //    function _previewMintHarness(uint256 shares, uint256 _totalAssets) public view returns (uint256) {
+    //        return _previewMint(shares, _totalAssets);
+    //    }
 
     function highestInstrumentEndDateHarness() public view returns (uint256) {
         return highestInstrumentEndDate;

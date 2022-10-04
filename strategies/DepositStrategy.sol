@@ -13,12 +13,7 @@ contract DepositStrategy is IDepositStrategy {
     }
 
     function _maxDeposit(address) internal view returns (uint256) {
-        uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
-        uint256 maxSize = IPortfolio(msg.sender).maxSize();
-        if (totalAssets >= maxSize) {
-            return 0;
-        }
-        return maxSize - totalAssets;
+        return IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets();
     }
 
     function maxMint(address sender) external view returns (uint256) {

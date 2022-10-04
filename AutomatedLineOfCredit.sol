@@ -210,14 +210,9 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     function deposit(uint256 assets, address receiver) external whenNotPaused returns (uint256) {
         require(receiver != address(this), "AutomatedLineOfCredit: Portfolio cannot be deposit receiver");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
-        uint256 sharesToMint;
 
-        if (address(depositStrategy) != address(0x00)) {
-            (sharesToMint, ) = depositStrategy.onDeposit(msg.sender, assets, receiver);
-        }
+        (uint256 sharesToMint, ) = depositStrategy.onDeposit(msg.sender, assets, receiver);
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        if (address(depositStrategy) == address(0x00)) sharesToMint = _convertToShares(assets, _totalAssets);
-
         require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Deposit would cause portfolio to exceed max size");
         require(sharesToMint > 0, "AutomatedLineOfCredit: Deposit not allowed");
 
@@ -239,14 +234,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(owner != address(this), "AutomatedLineOfCredit: Cannot redeem from portfolio");
         require(shares > 0, "AutomatedLineOfCredit: Cannot redeem 0 shares");
 
-        uint256 assets;
-        if (address(withdrawStrategy) != address(0x00)) {
-            (assets, ) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
-        }
-        (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        if (address(withdrawStrategy) == address(0x00)) {
-            assets = _convertToAssets(shares, _totalAssets);
-        }
+        (uint256 assets, ) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
+        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
         require(assets > 0, "AutomatedLineOfCredit: Redeem not allowed");
 
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
@@ -284,14 +273,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(owner != address(this), "AutomatedLineOfCredit: Cannot withdraw from portfolio");
         require(assets > 0, "AutomatedLineOfCredit: Cannot withdraw 0 assets");
 
-        uint256 shares;
-        if (address(withdrawStrategy) != address(0x00)) {
-            (shares, ) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
-        }
-        (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        if (address(withdrawStrategy) == address(0x00)) {
-            shares = _previewWithdraw(assets, _totalAssets);
-        }
+        (uint256 shares, ) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
+        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
 
         uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
         require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds portfolio liquidity");
@@ -312,12 +295,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(receiver != address(this), "AutomatedLineOfCredit: Cannot mint to portfolio");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
 
-        uint256 assets;
-        if (address(depositStrategy) != address(0x00)) {
-            (assets, ) = depositStrategy.onMint(msg.sender, shares, receiver);
-        }
+        (uint256 assets, ) = depositStrategy.onMint(msg.sender, shares, receiver);
         (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        if (address(depositStrategy) == address(0x00)) assets = _previewMint(shares, _totalAssets);
 
         require(assets > 0, "AutomatedLineOfCredit: Sender not allowed to mint");
         require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Mint would cause portfolio to exceed max size");
@@ -368,12 +347,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         if (paused()) {
             return 0;
         }
-        uint256 userBalance = balanceOf(owner);
-        if (address(withdrawStrategy) != address(0x00)) {
-            return Math.min(userBalance, withdrawStrategy.maxRedeem(owner));
-        } else {
-            return Math.min(userBalance, convertToShares(liquidAssets()));
-        }
+        return Math.min(balanceOf(owner), withdrawStrategy.maxRedeem(owner));
     }
 
     function unincludedInterest() public view returns (uint256) {
@@ -422,43 +396,21 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         if (paused() || getStatus() != AutomatedLineOfCreditStatus.Open) {
             return 0;
         }
-        if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.maxDeposit(receiver);
-        }
-        uint256 _totalAssets = totalAssets();
-        if (_totalAssets >= maxSize) {
+        if (totalAssets() >= maxSize) {
             return 0;
-        } else {
-            return maxSize - _totalAssets;
         }
+        return depositStrategy.maxDeposit(receiver);
     }
 
     function maxWithdraw(address owner) external view virtual returns (uint256) {
         if (paused()) {
             return 0;
         }
-        uint256 availableLiquidity = liquidAssets();
-        if (address(withdrawStrategy) != address(0x00)) {
-            return Math.min(availableLiquidity, withdrawStrategy.maxWithdraw(owner));
-        } else {
-            return Math.min(availableLiquidity, convertToAssets(balanceOf(owner)));
-        }
+        return Math.min(liquidAssets(), withdrawStrategy.maxWithdraw(owner));
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.previewWithdraw(assets);
-        } else {
-            return _previewWithdraw(assets, totalAssets());
-        }
-    }
-
-    function _previewWithdraw(uint256 assets, uint256 _totalAssets) internal view returns (uint256) {
-        if (_totalAssets == 0) {
-            return 0;
-        } else {
-            return Math.ceilDiv(assets * totalSupply(), _totalAssets);
-        }
+        return withdrawStrategy.previewWithdraw(assets);
     }
 
     function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
@@ -487,52 +439,26 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     function previewDeposit(uint256 assets) external view returns (uint256) {
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
-        if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.previewDeposit(assets);
-        } else {
-            return convertToShares(assets);
-        }
+        return depositStrategy.previewDeposit(assets);
     }
 
     function previewMint(uint256 shares) external view returns (uint256) {
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
-        if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.previewMint(shares);
-        } else {
-            return _previewMint(shares, totalAssets());
-        }
-    }
-
-    function _previewMint(uint256 shares, uint256 _totalAssets) internal view returns (uint256) {
-        uint256 _totalSupply = totalSupply();
-        if (_totalSupply == 0) {
-            return shares;
-        } else {
-            return Math.ceilDiv((shares * _totalAssets), _totalSupply);
-        }
+        return depositStrategy.previewMint(shares);
     }
 
     function maxMint(address receiver) external view returns (uint256) {
         if (paused() || getStatus() != AutomatedLineOfCreditStatus.Open) {
             return 0;
         }
-        uint256 _totalAssets = totalAssets();
-        if (_totalAssets >= maxSize) {
+        if (totalAssets() >= maxSize) {
             return 0;
         }
-        if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.maxMint(receiver);
-        } else {
-            return convertToShares(maxSize - totalAssets());
-        }
+        return depositStrategy.maxMint(receiver);
     }
 
     function previewRedeem(uint256 shares) public view virtual returns (uint256) {
-        if (address(withdrawStrategy) != address(0x00)) {
-            return withdrawStrategy.previewRedeem(shares);
-        } else {
-            return convertToAssets(shares);
-        }
+        return withdrawStrategy.previewRedeem(shares);
     }
 
     function totalDebt() public view returns (uint256) {
@@ -586,14 +512,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         lastProtocolFeeRate = protocolConfig.protocolFeeRate();
     }
 
-    function getMaxDepositFromStrategy(address receiver) internal view returns (uint256) {
-        if (address(depositStrategy) != address(0x00)) {
-            return depositStrategy.maxDeposit(receiver);
-        } else {
-            return type(uint256).max;
-        }
-    }
-
     function accruedFee() external view returns (uint256) {
         return _accruedFee(_totalAssetsBeforeAccruedFee(totalDebt()));
     }
@@ -634,9 +552,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         address recipient,
         uint256 amount
     ) internal override whenNotPaused {
-        if (address(transferStrategy) != address(0)) {
-            require(transferStrategy.canTransfer(sender, recipient, amount), "AutomatedLineOfCredit: This transfer not permitted");
-        }
+        require(transferStrategy.canTransfer(sender, recipient, amount), "AutomatedLineOfCredit: This transfer not permitted");
         super._transfer(sender, recipient, amount);
     }
 
