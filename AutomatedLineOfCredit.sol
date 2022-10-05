@@ -122,26 +122,24 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         emit TransferStrategyChanged(_transferStrategy);
     }
 
-    function borrow(uint256 amount) external whenNotPaused {
+    function borrow(uint256 assets) external whenNotPaused {
+        assert(borrower != address(this));
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
-        require(address(this) != borrower, "AutomatedLineOfCredit: Portfolio cannot borrow from itself");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
-        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
-        require(amount <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds portfolio balance");
-        require(amount > 0, "AutomatedLineOfCredit: Cannot borrow zero assets");
+        require(assets > 0, "AutomatedLineOfCredit: Cannot borrow zero assets");
+        (, uint256 fee) = getTotalAssetsAndFee();
+        require(assets + fee <= virtualTokenBalance, "AutomatedLineOfCredit: Amount exceeds portfolio balance");
 
-        borrowedAmount += amount;
-
-        asset.safeTransfer(borrower, amount);
-        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - amount);
-
-        updateLastProtocolFeeRate();
-        emit Borrowed(amount);
+        update();
+        borrowedAmount += assets;
+        virtualTokenBalance -= assets;
+        asset.safeTransfer(borrower, assets);
+        payFee(fee);
+        emit Borrowed(assets);
     }
 
     function totalAssets() public view returns (uint256) {
-        (uint256 assets, ) = getTotalAssetsAndFee(totalDebt());
+        (uint256 assets, ) = getTotalAssetsAndFee();
         return assets;
     }
 
@@ -149,46 +147,40 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         return totalAssets() - totalDebt();
     }
 
-    function repay(uint256 amount) external whenNotPaused {
+    function repay(uint256 assets) external whenNotPaused {
+        assert(borrower != address(this));
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
-        require(msg.sender != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
-        require(borrower != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
-        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        require(amount <= borrowedAmount + accruedInterest, "AutomatedLineOfCredit: Amount must be less than total debt");
+        (, uint256 fee) = getTotalAssetsAndFee();
+        update();
+        require(assets <= borrowedAmount + accruedInterest, "AutomatedLineOfCredit: Amount must be less than total debt");
 
-        if (amount > accruedInterest) {
-            uint256 repaidPrincipal = amount - accruedInterest;
+        if (assets > accruedInterest) {
+            borrowedAmount -= (assets - accruedInterest);
             accruedInterest = 0;
-            borrowedAmount -= repaidPrincipal;
         } else {
-            accruedInterest -= amount;
+            accruedInterest -= assets;
         }
-
-        _repay(amount, _fee);
+        _executeRepay(assets, fee);
     }
 
     function repayInFull() external whenNotPaused {
+        assert(borrower != address(this));
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
-        require(msg.sender != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
-        require(borrower != address(this), "AutomatedLineOfCredit: Portfolio cannot repay itself");
 
         uint256 _totalDebt = totalDebt();
-
+        (, uint256 fee) = getTotalAssetsAndFee();
+        update();
         borrowedAmount = 0;
         accruedInterest = 0;
-        (, uint256 feeToPay) = getTotalAssetsAndFee(_totalDebt);
-        _repay(_totalDebt, feeToPay);
-        lastUpdateTime = block.timestamp;
+        _executeRepay(_totalDebt, fee);
     }
 
-    function _repay(uint256 amount, uint256 _fee) internal {
-        require(amount > 0, "AutomatedLineOfCredit: Repayment amount must be greater than 0");
-
-        asset.safeTransferFrom(borrower, address(this), amount);
-        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance + amount);
-
-        updateLastProtocolFeeRate();
-        emit Repaid(amount);
+    function _executeRepay(uint256 assets, uint256 fee) internal {
+        require(assets > 0, "AutomatedLineOfCredit: Repayment amount must be greater than 0");
+        asset.safeTransferFrom(borrower, address(this), assets);
+        virtualTokenBalance += assets;
+        payFee(fee);
+        emit Repaid(assets);
     }
 
     function convertToAssets(uint256 sharesAmount) public view returns (uint256) {
@@ -208,21 +200,29 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) external whenNotPaused returns (uint256) {
-        require(receiver != address(this), "AutomatedLineOfCredit: Portfolio cannot be deposit receiver");
+        (uint256 shares, ) = depositStrategy.onDeposit(msg.sender, assets, receiver);
+        _executeDeposit(receiver, assets, shares);
+        return shares;
+    }
+
+    function _executeDeposit(
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal {
+        assert(msg.sender != address(this));
+        require(receiver != address(this), "AutomatedLineOfCredit: Portfolio cannot be the receiver");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
+        require(assets > 0 && shares > 0, "AutomatedLineOfCredit: Operation not allowed");
+        (uint256 _totalAssets, uint256 fee) = getTotalAssetsAndFee();
+        require(_totalAssets + assets <= maxSize, "AutomatedLineOfCredit: Operation would cause portfolio to exceed max size");
 
-        (uint256 sharesToMint, ) = depositStrategy.onDeposit(msg.sender, assets, receiver);
-        (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Deposit would cause portfolio to exceed max size");
-        require(sharesToMint > 0, "AutomatedLineOfCredit: Deposit not allowed");
-
+        update();
+        _mint(receiver, shares);
+        virtualTokenBalance += assets;
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        _mint(receiver, sharesToMint);
-        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance + assets);
-
-        updateLastProtocolFeeRate();
-        emit Deposit(msg.sender, receiver, assets, sharesToMint);
-        return sharesToMint;
+        payFee(fee);
+        emit Deposit(msg.sender, receiver, assets, shares);
     }
 
     function redeem(
@@ -230,24 +230,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         address receiver,
         address owner
     ) external whenNotPaused returns (uint256) {
-        require(receiver != address(this), "AutomatedLineOfCredit: Cannot redeem to portfolio");
-        require(owner != address(this), "AutomatedLineOfCredit: Cannot redeem from portfolio");
-        require(shares > 0, "AutomatedLineOfCredit: Cannot redeem 0 shares");
-
         (uint256 assets, ) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
-        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        require(assets > 0, "AutomatedLineOfCredit: Redeem not allowed");
-
-        uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
-        require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Redeemed assets exceed portfolio balance");
-
-        _burnFrom(owner, msg.sender, shares);
-        asset.safeTransfer(receiver, assets);
-        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - assets);
-
-        updateLastProtocolFeeRate();
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-
+        _executeWithdraw(owner, receiver, assets, shares);
         return assets;
     }
 
@@ -269,78 +253,58 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         address receiver,
         address owner
     ) external whenNotPaused returns (uint256) {
-        require(receiver != address(this), "AutomatedLineOfCredit: Cannot withdraw to portfolio");
-        require(owner != address(this), "AutomatedLineOfCredit: Cannot withdraw from portfolio");
-        require(assets > 0, "AutomatedLineOfCredit: Cannot withdraw 0 assets");
-
         (uint256 shares, ) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
-        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-
-        uint256 tokenBalanceAfterFee = _fee > virtualTokenBalance ? 0 : virtualTokenBalance - _fee;
-        require(assets <= tokenBalanceAfterFee, "AutomatedLineOfCredit: Amount exceeds portfolio liquidity");
-        require(shares > 0, "AutomatedLineOfCredit: Withdraw not allowed");
-
-        _burnFrom(owner, msg.sender, shares);
-        asset.safeTransfer(receiver, assets);
-        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance - assets);
-
-        updateLastProtocolFeeRate();
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-
+        _executeWithdraw(owner, receiver, assets, shares);
         return shares;
     }
 
+    function _executeWithdraw(
+        address owner,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal {
+        assert(msg.sender != address(this));
+        require(receiver != address(this), "AutomatedLineOfCredit: Portfolio cannot be the receiver");
+        require(owner != address(this), "AutomatedLineOfCredit: Portfolio cannot be the owner");
+        require(assets > 0 && shares > 0, "AutomatedLineOfCredit: Operation not allowed");
+        (, uint256 fee) = getTotalAssetsAndFee();
+        require(assets + fee <= virtualTokenBalance, "AutomatedLineOfCredit: Operation exceeds portfolio liquidity");
+
+        update();
+        _burnFrom(owner, msg.sender, shares);
+        virtualTokenBalance -= assets;
+        asset.safeTransfer(receiver, assets);
+        payFee(fee);
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+    }
+
     function mint(uint256 shares, address receiver) external virtual whenNotPaused returns (uint256) {
-        require(msg.sender != address(this), "AutomatedLineOfCredit: Portfolio cannot mint");
-        require(receiver != address(this), "AutomatedLineOfCredit: Cannot mint to portfolio");
-        require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
-
         (uint256 assets, ) = depositStrategy.onMint(msg.sender, shares, receiver);
-        (uint256 _totalAssets, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-
-        require(assets > 0, "AutomatedLineOfCredit: Sender not allowed to mint");
-        require((_totalAssets + assets) <= maxSize, "AutomatedLineOfCredit: Mint would cause portfolio to exceed max size");
-
-        asset.safeTransferFrom(msg.sender, address(this), assets);
-        _mint(receiver, shares);
-        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance + assets);
-
-        updateLastProtocolFeeRate();
-        emit Deposit(msg.sender, receiver, assets, shares);
+        _executeDeposit(receiver, assets, shares);
         return assets;
     }
 
-    function payFeeAndUpdateVirtualTokenBalance(uint256 _fee, uint256 totalBalance) internal {
-        uint256 _feePaid = payFee(_fee, totalBalance);
-        virtualTokenBalance = totalBalance - _feePaid;
-    }
-
-    function payFee(uint256 _fee, uint256 balance) internal returns (uint256) {
+    function payFee(uint256 fee) internal {
+        uint256 _virtualTokenBalance = virtualTokenBalance;
         uint256 feeToPay;
-        if (balance < _fee) {
-            feeToPay = balance;
-            unpaidFee = _fee - balance;
+        if (_virtualTokenBalance < fee) {
+            feeToPay = _virtualTokenBalance;
+            unpaidFee = fee - _virtualTokenBalance;
         } else {
-            feeToPay = _fee;
+            feeToPay = fee;
             unpaidFee = 0;
         }
         address protocolAddress = protocolConfig.protocolAddress();
+        virtualTokenBalance = _virtualTokenBalance - feeToPay;
         asset.safeTransfer(protocolAddress, feeToPay);
         emit FeePaid(protocolAddress, feeToPay);
-        return feeToPay;
     }
 
     function updateAndPayFee() external {
-        (, uint256 _fee) = updateAndGetTotalAssetsAndFee();
-        payFeeAndUpdateVirtualTokenBalance(_fee, virtualTokenBalance);
-        updateLastProtocolFeeRate();
-    }
-
-    function updateAndGetTotalAssetsAndFee() internal returns (uint256, uint256) {
-        accruedInterest += unincludedInterest();
-        (uint256 _totalAssets, uint256 fee) = getTotalAssetsAndFee(borrowedAmount + accruedInterest);
-        lastUpdateTime = block.timestamp;
-        return (_totalAssets, fee);
+        (, uint256 fee) = getTotalAssetsAndFee();
+        update();
+        payFee(fee);
     }
 
     function maxRedeem(address owner) external view returns (uint256) {
@@ -508,8 +472,10 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         }
     }
 
-    function updateLastProtocolFeeRate() internal {
+    function update() internal {
         lastProtocolFeeRate = protocolConfig.protocolFeeRate();
+        accruedInterest += unincludedInterest();
+        lastUpdateTime = block.timestamp;
     }
 
     function accruedFee() external view returns (uint256) {
@@ -530,8 +496,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         return unpaidFee > assetsBeforeFee ? 0 : assetsBeforeFee - unpaidFee;
     }
 
-    function getTotalAssetsAndFee(uint256 debt) internal view returns (uint256, uint256) {
-        uint256 assetsBeforeFee = _totalAssetsBeforeAccruedFee(debt);
+    function getTotalAssetsAndFee() internal view returns (uint256, uint256) {
+        uint256 assetsBeforeFee = _totalAssetsBeforeAccruedFee(totalDebt());
         uint256 fee = _accruedFee(assetsBeforeFee);
         return (assetsBeforeFee - fee, fee + unpaidFee);
     }

@@ -157,19 +157,21 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function fundInstrument(IDebtInstrument instrument, uint256 instrumentId) external onlyRole(MANAGER_ROLE) {
         require(isInstrumentAdded[instrument][instrumentId], "FP:Instrument not added");
+        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         address borrower = instrument.recipient(instrumentId);
         uint256 principalAmount = instrument.principal(instrumentId);
-        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
-        uint256 totalFee = protocolFee + managerFee;
-        require(totalFee + principalAmount <= virtualTokenBalance, "FP:Not enough liquidity");
         instrument.start(instrumentId);
         uint256 instrumentEndDate = instrument.endDate(instrumentId);
+        require(principalAmount + protocolFee + managerFee <= virtualTokenBalance, "FP:Not enough liquidity");
         require(instrumentEndDate <= endDate, "FP:Instrument has bigger endDate");
         updateHighestInstrumentEndDate(instrumentEndDate);
 
+        update();
+        virtualTokenBalance -= principalAmount;
+        payAllFees(protocolFee, managerFee, 0);
+
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
         asset.safeTransfer(borrower, principalAmount);
-        _payFeeAndUpdate(protocolFee, managerFee, 0, virtualTokenBalance - principalAmount);
         emit InstrumentFunded(instrument, instrumentId);
     }
 
@@ -194,51 +196,37 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) external override whenNotPaused returns (uint256) {
-        (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         (uint256 shares, uint256 depositFee) = depositStrategy.onDeposit(msg.sender, assets, receiver);
         require(assets >= depositFee, "FP:Fee bigger than assets");
-        uint256 assetsAfterDepositFee = assets - depositFee;
-        _checkDeposit(receiver, _totalAssets, assetsAfterDepositFee);
-
-        require(shares > 0, "FP:Operation not allowed");
-
-        _executeDeposit(receiver, shares, assets, assetsAfterDepositFee);
-        _payFeeAndUpdate(protocolFee, managerFee, depositFee, virtualTokenBalance + assets);
+        _executeDeposit(receiver, shares, assets, depositFee);
         return shares;
     }
 
-    function _checkDeposit(
-        address receiver,
-        uint256 _totalAssets,
-        uint256 assets
-    ) internal view {
-        require(assets + _totalAssets <= maxSize, "FP:Portfolio is full");
-        require(block.timestamp < endDate, "FP:End date elapsed");
-        require(receiver != address(this), "FP:Wrong receiver/owner");
-    }
-
     function mint(uint256 shares, address receiver) external whenNotPaused returns (uint256) {
-        (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         (uint256 assets, uint256 mintFee) = depositStrategy.onMint(msg.sender, shares, receiver);
-
-        require(assets > 0, "FP:Operation not allowed");
-        uint256 assetsWithMintFee = assets + mintFee;
-        _checkDeposit(receiver, _totalAssets, assets);
-
-        _executeDeposit(receiver, shares, assetsWithMintFee, assets);
-        _payFeeAndUpdate(protocolFee, managerFee, mintFee, virtualTokenBalance + assetsWithMintFee);
-        return assetsWithMintFee + protocolFee + managerFee;
+        _executeDeposit(receiver, shares, assets + mintFee, mintFee);
+        return assets + mintFee;
     }
 
     function _executeDeposit(
         address receiver,
         uint256 shares,
-        uint256 assetsWithFee,
-        uint256 assets
+        uint256 transferredAssets,
+        uint256 actionFee
     ) internal {
+        require(receiver != address(this), "FP:Wrong receiver/owner");
+        require(block.timestamp < endDate, "FP:End date elapsed");
+        uint256 depositedAssets = transferredAssets - actionFee;
+        require(depositedAssets > 0 && shares > 0, "FP:Operation not allowed");
+        (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        require(depositedAssets + _totalAssets <= maxSize, "FP:Portfolio is full");
+
+        update();
+        virtualTokenBalance += transferredAssets;
         _mint(receiver, shares);
-        asset.safeTransferFrom(msg.sender, address(this), assetsWithFee);
-        emit Deposit(msg.sender, receiver, assets, shares);
+        asset.safeTransferFrom(msg.sender, address(this), transferredAssets);
+        payAllFees(protocolFee, managerFee, actionFee);
+        emit Deposit(msg.sender, receiver, transferredAssets, shares);
     }
 
     function previewMint(uint256 shares) external view returns (uint256) {
@@ -251,15 +239,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) external virtual whenNotPaused returns (uint256) {
-        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         (uint256 assets, uint256 redeemFee) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
-
-        require(assets >= redeemFee, "FP:Fee bigger than assets");
-        require(assets > 0, "FP:Operation not allowed");
-        require(assets + protocolFee + managerFee <= virtualTokenBalance, "FP:Not enough liquidity");
-
-        _executeWithdraw(owner, receiver, shares, assets);
-        _payFeeAndUpdate(protocolFee, managerFee, redeemFee, virtualTokenBalance - assets);
+        _executeWithdraw(owner, receiver, shares, assets, redeemFee);
         return assets;
     }
 
@@ -277,18 +258,20 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     function repay(
         IDebtInstrument instrument,
         uint256 instrumentId,
-        uint256 amount
+        uint256 assets
     ) external whenNotPaused {
-        require(amount > 0, "FP:Amount can't be 0");
+        require(assets > 0, "FP:Amount can't be 0");
         require(instrument.recipient(instrumentId) == msg.sender, "FP:Wrong recipient");
         require(isInstrumentAdded[instrument][instrumentId], "FP:Instrument not added");
         (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
-        instrument.repay(instrumentId, amount);
+        instrument.repay(instrumentId, assets);
         valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
 
-        asset.safeTransferFrom(msg.sender, address(this), amount);
-        _payFeeAndUpdate(protocolFee, managerFee, 0, virtualTokenBalance + amount);
-        emit InstrumentRepaid(instrument, instrumentId, amount);
+        update();
+        virtualTokenBalance += assets;
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+        payAllFees(protocolFee, managerFee, 0);
+        emit InstrumentRepaid(instrument, instrumentId, assets);
     }
 
     function onERC721Received(
@@ -302,57 +285,55 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function payFeeAndUpdate() external {
         (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
-        _payFeeAndUpdate(protocolFee, managerFee, 0, virtualTokenBalance);
+        update();
+        payAllFees(protocolFee, managerFee, 0);
     }
 
-    function _payFeeAndUpdate(
-        uint256 protocolFee,
-        uint256 managerContinuousFee,
-        uint256 managerActionFee,
-        uint256 totalBalance
-    ) internal {
-        totalBalance -= managerActionFee;
-        uint256 protocolFeePaid = payProtocolFee(protocolFee, totalBalance);
-        uint256 managerFeePaid = payManagerFee(managerContinuousFee, managerActionFee, totalBalance - protocolFeePaid);
-        virtualTokenBalance = totalBalance - protocolFeePaid - managerFeePaid;
+    function update() internal {
         lastUpdateTime = block.timestamp;
         lastProtocolFeeRate = protocolConfig.protocolFeeRate();
         lastManagerFeeRate = feeStrategy.managerFeeRate();
     }
 
-    function payManagerFee(
-        uint256 continuousFee,
-        uint256 actionFee,
-        uint256 liquidity
-    ) internal returns (uint256) {
+    function payAllFees(
+        uint256 protocolFee,
+        uint256 managerContinuousFee,
+        uint256 managerActionFee
+    ) internal {
+        payProtocolFee(protocolFee);
+        payManagerFee(managerContinuousFee, managerActionFee);
+    }
+
+    function payManagerFee(uint256 continuousFee, uint256 actionFee) internal {
+        uint256 _virtualTokenBalance = virtualTokenBalance;
         uint256 continuousFeeToPay;
-        if (liquidity < continuousFee) {
-            continuousFeeToPay = liquidity;
-            unpaidManagerFee = continuousFee - liquidity;
+        if (_virtualTokenBalance < continuousFee) {
+            continuousFeeToPay = _virtualTokenBalance;
+            unpaidManagerFee = continuousFee - _virtualTokenBalance;
         } else {
             continuousFeeToPay = continuousFee;
             unpaidManagerFee = 0;
         }
         payFee(managerFeeBeneficiary, continuousFeeToPay + actionFee);
-        return continuousFeeToPay;
     }
 
-    function payProtocolFee(uint256 _fee, uint256 balance) internal returns (uint256) {
+    function payProtocolFee(uint256 fee) internal {
         uint256 feeToPay;
-        if (balance < _fee) {
-            feeToPay = balance;
-            unpaidProtocolFee = _fee - balance;
+        uint256 _virtualTokenBalance = virtualTokenBalance;
+        if (_virtualTokenBalance < fee) {
+            feeToPay = _virtualTokenBalance;
+            unpaidProtocolFee = fee - _virtualTokenBalance;
         } else {
-            feeToPay = _fee;
+            feeToPay = fee;
             unpaidProtocolFee = 0;
         }
         payFee(protocolConfig.protocolAddress(), feeToPay);
-        return feeToPay;
     }
 
-    function payFee(address feeReceiver, uint256 _fee) internal {
-        asset.safeTransfer(feeReceiver, _fee);
-        emit FeePaid(feeReceiver, _fee);
+    function payFee(address feeReceiver, uint256 fee) internal {
+        virtualTokenBalance -= fee;
+        asset.safeTransfer(feeReceiver, fee);
+        emit FeePaid(feeReceiver, fee);
     }
 
     function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
@@ -496,17 +477,8 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) external whenNotPaused returns (uint256) {
-        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         (uint256 shares, uint256 withdrawFee) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
-
-        require(assets > 0, "FP:Amount can't be 0");
-        require(shares > 0, "FP:Operation not allowed");
-        require(receiver != address(this) && owner != address(this), "FP:Wrong receiver/owner");
-        require(assets + withdrawFee + protocolFee + managerFee <= virtualTokenBalance, "FP:Not enough liquidity");
-
-        _executeWithdraw(owner, receiver, shares, assets);
-
-        _payFeeAndUpdate(protocolFee, managerFee, withdrawFee, virtualTokenBalance - assets);
+        _executeWithdraw(owner, receiver, shares, assets, withdrawFee);
         return shares;
     }
 
@@ -514,10 +486,19 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address owner,
         address receiver,
         uint256 shares,
-        uint256 assets
+        uint256 assets,
+        uint256 actionFee
     ) internal {
+        require(receiver != address(this) && owner != address(this), "FP:Wrong receiver/owner");
+        require(assets > 0 && shares > 0, "FP:Operation not allowed");
+        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        require(assets + protocolFee + managerFee + actionFee <= virtualTokenBalance, "FP:Not enough liquidity");
+
+        update();
         _burnFrom(owner, msg.sender, shares);
+        virtualTokenBalance -= assets;
         asset.safeTransfer(receiver, assets);
+        payAllFees(protocolFee, managerFee, actionFee);
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 

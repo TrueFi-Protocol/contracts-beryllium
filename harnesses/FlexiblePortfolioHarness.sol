@@ -35,16 +35,4 @@ contract FlexiblePortfolioHarness is FlexiblePortfolio {
     function _convertToSharesHarness(uint256 assets, uint256 _totalAssets) public view returns (uint256) {
         return _convertToShares(assets, _totalAssets);
     }
-
-    function payManagerFeeHarness(
-        uint256 continuousFee,
-        uint256 actionFee,
-        uint256 liquidity
-    ) public returns (uint256) {
-        return payManagerFee(continuousFee, actionFee, liquidity);
-    }
-
-    function payProtocolFeeHarness(uint256 _fee, uint256 balance) public returns (uint256) {
-        return payProtocolFee(_fee, balance);
-    }
 }
