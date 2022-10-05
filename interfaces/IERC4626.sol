@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20Upgradeable, IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
 
-interface IERC4626 {
+interface IERC4626 is IERC20Upgradeable, IERC20MetadataUpgradeable {
+    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
+
+    event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
+
     function asset() external returns (IERC20Metadata asset);
 
     function totalAssets() external view returns (uint256 totalManagedAssets);
@@ -32,6 +37,8 @@ interface IERC4626 {
     function previewMint(uint256 shares) external view returns (uint256);
 
     function previewRedeem(uint256 shares) external view returns (uint256);
+
+    function previewDeposit(uint256 assets) external view returns (uint256 shares);
 
     function redeem(
         uint256 shares,

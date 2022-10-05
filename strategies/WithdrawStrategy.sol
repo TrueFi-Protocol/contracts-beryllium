@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPortfolio} from "../interfaces/IPortfolio.sol";
 import {IWithdrawStrategy} from "../interfaces/IWithdrawStrategy.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract WithdrawStrategy is IWithdrawStrategy {
     function maxWithdraw(address owner) external view returns (uint256) {
-        return IPortfolio(msg.sender).convertToAssets(IERC20Metadata(msg.sender).balanceOf(owner));
+        return IPortfolio(msg.sender).convertToAssets(IPortfolio(msg.sender).balanceOf(owner));
     }
 
     function maxRedeem(address) external view returns (uint256) {
@@ -22,7 +21,7 @@ contract WithdrawStrategy is IWithdrawStrategy {
         address
     ) external view returns (uint256, uint256) {
         uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
-        uint256 totalSupply = IERC20Metadata(msg.sender).totalSupply();
+        uint256 totalSupply = IPortfolio(msg.sender).totalSupply();
         if (totalAssets == 0) {
             return (0, 0);
         } else {
@@ -37,7 +36,7 @@ contract WithdrawStrategy is IWithdrawStrategy {
         address
     ) external view returns (uint256, uint256) {
         uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
-        uint256 totalSupply = IERC20Metadata(msg.sender).totalSupply();
+        uint256 totalSupply = IPortfolio(msg.sender).totalSupply();
         if (totalSupply == 0) {
             return (0, 0);
         } else {
@@ -51,7 +50,7 @@ contract WithdrawStrategy is IWithdrawStrategy {
 
     function previewWithdraw(uint256 assets) external view returns (uint256) {
         uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
-        uint256 totalSupply = IERC20Metadata(msg.sender).totalSupply();
+        uint256 totalSupply = IPortfolio(msg.sender).totalSupply();
         if (totalAssets == 0) {
             return 0;
         } else {

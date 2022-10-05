@@ -5,7 +5,11 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20Upgradeable, IERC20Upgradeable, IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+
+import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IFlexiblePortfolio} from "./interfaces/IFlexiblePortfolio.sol";
@@ -67,8 +71,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     event FeeStrategyChanged(IFeeStrategy indexed newStrategy);
 
     event FeePaid(address indexed protocolAddress, uint256 amount);
-    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
-    event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
     function initialize(
         IProtocolConfig _protocolConfig,
@@ -102,7 +104,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         }
     }
 
-    function decimals() public view virtual override returns (uint8) {
+    function decimals() public view virtual override(ERC20Upgradeable, IERC20MetadataUpgradeable) returns (uint8) {
         return _decimals;
     }
 
@@ -251,7 +253,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return Math.min(balanceOf(owner), withdrawStrategy.maxRedeem(owner));
     }
 
-    function transfer(address recipient, uint256 amount) public override whenNotPaused returns (bool) {
+    function transfer(address recipient, uint256 amount)
+        public
+        override(ERC20Upgradeable, IERC20Upgradeable)
+        whenNotPaused
+        returns (bool)
+    {
         return super.transfer(recipient, amount);
     }
 
@@ -574,5 +581,15 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 amount
     ) internal override whenNotPaused {
         super._approve(owner, spender, amount);
+    }
+
+    function supportsInterface(bytes4 interfaceID) public view override(AccessControlEnumerableUpgradeable, IERC165) returns (bool) {
+        return
+            (interfaceID == type(IERC165).interfaceId ||
+                interfaceID == type(IERC20).interfaceId ||
+                interfaceID == ERC20Upgradeable.name.selector ||
+                interfaceID == ERC20Upgradeable.symbol.selector ||
+                interfaceID == ERC20Upgradeable.decimals.selector ||
+                interfaceID == type(IERC4626).interfaceId) || super.supportsInterface(interfaceID);
     }
 }

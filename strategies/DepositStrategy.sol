@@ -3,9 +3,7 @@ pragma solidity ^0.8.10;
 
 import {IDepositStrategy} from "../interfaces/IDepositStrategy.sol";
 import {IPortfolio} from "../interfaces/IPortfolio.sol";
-import {IPortfolio, IERC4626} from "../interfaces/IPortfolio.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract DepositStrategy is IDepositStrategy {
     function maxDeposit(address sender) external view returns (uint256) {
@@ -37,7 +35,7 @@ contract DepositStrategy is IDepositStrategy {
     }
 
     function previewDeposit(uint256 assets) external view returns (uint256 shares) {
-        return IERC4626(msg.sender).convertToShares(assets);
+        return IPortfolio(msg.sender).convertToShares(assets);
     }
 
     function previewMint(uint256 shares) external view returns (uint256) {
@@ -46,7 +44,7 @@ contract DepositStrategy is IDepositStrategy {
 
     function _previewMint(uint256 shares) internal view returns (uint256) {
         uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
-        uint256 totalSupply = IERC20Metadata(msg.sender).totalSupply();
+        uint256 totalSupply = IPortfolio(msg.sender).totalSupply();
         if (totalSupply == 0) {
             return shares;
         } else {

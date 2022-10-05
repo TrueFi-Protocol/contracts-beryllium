@@ -3,15 +3,20 @@ pragma solidity ^0.8.10;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAutomatedLineOfCredit, AutomatedLineOfCreditStatus} from "./interfaces/IAutomatedLineOfCredit.sol";
+import {IERC4626} from "./interfaces/IERC4626.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IDepositStrategy} from "./interfaces/IDepositStrategy.sol";
 import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
 import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
 
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20Upgradeable, IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+
 import {Upgradeable} from "./access/Upgradeable.sol";
 
 contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgradeable {
@@ -49,8 +54,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     event Borrowed(uint256 amount);
     event Repaid(uint256 amount);
     event FeePaid(address indexed protocolAddress, uint256 amount);
-    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
-    event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
     function initialize(
         IProtocolConfig _protocolConfig,
@@ -88,7 +91,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         _setTransferStrategy(_transferStrategy);
     }
 
-    function decimals() public view virtual override returns (uint8) {
+    function decimals() public view virtual override(ERC20Upgradeable, IERC20MetadataUpgradeable) returns (uint8) {
         return _decimals;
     }
 
@@ -524,5 +527,15 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         uint256 amount
     ) internal override whenNotPaused {
         super._approve(owner, spender, amount);
+    }
+
+    function supportsInterface(bytes4 interfaceID) public view override(AccessControlEnumerableUpgradeable, IERC165) returns (bool) {
+        return
+            (interfaceID == type(IERC165).interfaceId ||
+                interfaceID == type(IERC20).interfaceId ||
+                interfaceID == ERC20Upgradeable.name.selector ||
+                interfaceID == ERC20Upgradeable.symbol.selector ||
+                interfaceID == ERC20Upgradeable.decimals.selector ||
+                interfaceID == type(IERC4626).interfaceId) || super.supportsInterface(interfaceID);
     }
 }
