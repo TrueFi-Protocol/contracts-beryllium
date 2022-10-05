@@ -144,7 +144,8 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function liquidAssets() public view returns (uint256) {
-        return totalAssets() - totalDebt();
+        uint256 dueFee = unpaidFee + accruedFee();
+        return virtualTokenBalance > dueFee ? virtualTokenBalance - dueFee : 0;
     }
 
     function repay(uint256 assets) external whenNotPaused {
@@ -478,7 +479,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         lastUpdateTime = block.timestamp;
     }
 
-    function accruedFee() external view returns (uint256) {
+    function accruedFee() public view returns (uint256) {
         return _accruedFee(_totalAssetsBeforeAccruedFee(totalDebt()));
     }
 
