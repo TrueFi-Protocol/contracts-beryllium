@@ -320,10 +320,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function interestRate() public view returns (uint256) {
-        return _interestRate(_utilization(borrowedAmount));
-    }
-
-    function _interestRate(uint256 currentUtilization) internal view returns (uint256) {
+        uint256 currentUtilization = utilization();
         (
             uint32 minInterestRate,
             uint32 minInterestRateUtilizationThreshold,
@@ -382,10 +379,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(_maxSize != maxSize, "AutomatedLineOfCredit: New max size needs to be different");
         maxSize = _maxSize;
         emit MaxSizeChanged(_maxSize);
-    }
-
-    function utilization() external view returns (uint256) {
-        return _utilization(borrowedAmount);
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
@@ -503,15 +496,17 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         return (assetsBeforeFee - fee, fee + unpaidFee);
     }
 
-    function _utilization(uint256 debt) internal view returns (uint256) {
+    function utilization() public view returns (uint256) {
+        uint256 debt = borrowedAmount;
         if (debt == 0) {
             return 0;
         }
         uint256 _totalAssets = _totalAssetsBeforeAccruedFee(debt);
-        if (_totalAssets == 0) {
+        if (_totalAssets == 0 || debt > _totalAssets) {
             return BASIS_PRECISION;
+        } else {
+            return (debt * BASIS_PRECISION) / _totalAssets;
         }
-        return (debt * BASIS_PRECISION) / _totalAssets;
     }
 
     function _transfer(
