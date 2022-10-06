@@ -104,30 +104,199 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         }
     }
 
+    // -- ERC20 metadata --
     function decimals() public view virtual override(ERC20Upgradeable, IERC20MetadataUpgradeable) returns (uint8) {
         return _decimals;
     }
 
-    function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
-        require(_withdrawStrategy != withdrawStrategy, "FP:Value has to be different");
-        _setWithdrawStrategy(_withdrawStrategy);
+    // -- ERC4626 methods --
+    function totalAssets() public view override returns (uint256) {
+        (uint256 _totalAssets, , ) = getTotalAssetsAndFee();
+        return _totalAssets;
     }
 
-    function _setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) private {
-        withdrawStrategy = _withdrawStrategy;
-        emit WithdrawStrategyChanged(_withdrawStrategy);
+    function getTotalAssetsAndFee()
+        internal
+        view
+        returns (
+            uint256 totalAssetsAfterFee,
+            uint256 protocolFee,
+            uint256 managerFee
+        )
+    {
+        uint256 assetsBeforeFee = totalAssetsBeforeAccruedFee();
+        (uint256 accruedProtocolFee, uint256 accruedManagerFee) = _accruedFee(assetsBeforeFee);
+        return (
+            assetsBeforeFee - accruedProtocolFee - accruedManagerFee,
+            accruedProtocolFee + unpaidProtocolFee,
+            accruedManagerFee + unpaidManagerFee
+        );
     }
 
-    function setDepositStrategy(IDepositStrategy _depositStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
-        require(_depositStrategy != depositStrategy, "FP:Value has to be different");
-        _setDepositStrategy(_depositStrategy);
+    function totalAssetsBeforeAccruedFee() internal view returns (uint256) {
+        uint256 _totalAssets = virtualTokenBalance + valuationStrategy.calculateValue(this);
+        uint256 unpaidFees = unpaidProtocolFee + unpaidManagerFee;
+        return unpaidFees > _totalAssets ? 0 : _totalAssets - unpaidFees;
     }
 
-    function _setDepositStrategy(IDepositStrategy _depositStrategy) private {
-        depositStrategy = _depositStrategy;
-        emit DepositStrategyChanged(_depositStrategy);
+    /* @notice This contract is upgradeable and interacts with settable deposit strategies,
+     * that may change over the contract's lifespan. As a safety measure, we recommend approving
+     * this contract with the desired deposit amount instead of performing infinite allowance.
+     */
+    function deposit(uint256 assets, address receiver) external override whenNotPaused returns (uint256) {
+        (uint256 shares, uint256 depositFee) = depositStrategy.onDeposit(msg.sender, assets, receiver);
+        require(assets >= depositFee, "FP:Fee bigger than assets");
+        _executeDeposit(receiver, shares, assets, depositFee);
+        return shares;
     }
 
+    function mint(uint256 shares, address receiver) external whenNotPaused returns (uint256) {
+        (uint256 assets, uint256 mintFee) = depositStrategy.onMint(msg.sender, shares, receiver);
+        _executeDeposit(receiver, shares, assets + mintFee, mintFee);
+        return assets + mintFee;
+    }
+
+    function _executeDeposit(
+        address receiver,
+        uint256 shares,
+        uint256 transferredAssets,
+        uint256 actionFee
+    ) internal {
+        require(receiver != address(this), "FP:Wrong receiver/owner");
+        require(block.timestamp < endDate, "FP:End date elapsed");
+        uint256 depositedAssets = transferredAssets - actionFee;
+        require(depositedAssets > 0 && shares > 0, "FP:Operation not allowed");
+        (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        require(depositedAssets + _totalAssets <= maxSize, "FP:Portfolio is full");
+
+        update();
+        virtualTokenBalance += transferredAssets;
+        _mint(receiver, shares);
+        asset.safeTransferFrom(msg.sender, address(this), transferredAssets);
+        payAllFees(protocolFee, managerFee, actionFee);
+        emit Deposit(msg.sender, receiver, transferredAssets, shares);
+    }
+
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) external whenNotPaused returns (uint256) {
+        (uint256 shares, uint256 withdrawFee) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
+        _executeWithdraw(owner, receiver, shares, assets, withdrawFee);
+        return shares;
+    }
+
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) external virtual whenNotPaused returns (uint256) {
+        (uint256 assets, uint256 redeemFee) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
+        _executeWithdraw(owner, receiver, shares, assets, redeemFee);
+        return assets;
+    }
+
+    function _executeWithdraw(
+        address owner,
+        address receiver,
+        uint256 shares,
+        uint256 assets,
+        uint256 actionFee
+    ) internal {
+        require(receiver != address(this) && owner != address(this), "FP:Wrong receiver/owner");
+        require(assets > 0 && shares > 0, "FP:Operation not allowed");
+        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        require(assets + protocolFee + managerFee + actionFee <= virtualTokenBalance, "FP:Not enough liquidity");
+
+        update();
+        _burnFrom(owner, msg.sender, shares);
+        virtualTokenBalance -= assets;
+        asset.safeTransfer(receiver, assets);
+        payAllFees(protocolFee, managerFee, actionFee);
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+    }
+
+    function previewDeposit(uint256 assets) external view returns (uint256) {
+        require(block.timestamp < endDate, "FP:End date elapsed");
+        return depositStrategy.previewDeposit(assets);
+    }
+
+    function previewMint(uint256 shares) external view returns (uint256) {
+        require(block.timestamp < endDate, "FP:End date elapsed");
+        return depositStrategy.previewMint(shares);
+    }
+
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
+        return withdrawStrategy.previewWithdraw(assets);
+    }
+
+    function previewRedeem(uint256 shares) external view virtual returns (uint256) {
+        return withdrawStrategy.previewRedeem(shares);
+    }
+
+    function maxDeposit(address receiver) external view returns (uint256) {
+        if (paused() || block.timestamp >= endDate) {
+            return 0;
+        }
+        if (totalAssets() >= maxSize) {
+            return 0;
+        }
+        return depositStrategy.maxDeposit(receiver);
+    }
+
+    function maxMint(address receiver) external view returns (uint256) {
+        if (paused() || block.timestamp >= endDate) {
+            return 0;
+        }
+        if (totalAssets() >= maxSize) {
+            return 0;
+        }
+        return depositStrategy.maxMint(receiver);
+    }
+
+    function maxWithdraw(address owner) external view virtual returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return Math.min(liquidAssets(), withdrawStrategy.maxWithdraw(owner));
+    }
+
+    function maxRedeem(address owner) external view returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return Math.min(balanceOf(owner), withdrawStrategy.maxRedeem(owner));
+    }
+
+    function convertToAssets(uint256 sharesAmount) public view returns (uint256) {
+        return _convertToAssets(sharesAmount, totalAssets());
+    }
+
+    function _convertToAssets(uint256 sharesAmount, uint256 _totalAssets) internal view returns (uint256) {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply == 0) {
+            return 0;
+        }
+        return (sharesAmount * _totalAssets) / _totalSupply;
+    }
+
+    function convertToShares(uint256 assets) public view returns (uint256) {
+        return _convertToShares(assets, totalAssets());
+    }
+
+    function _convertToShares(uint256 assets, uint256 _totalAssets) internal view returns (uint256) {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply == 0) {
+            return assets;
+        } else if (_totalAssets == 0) {
+            return 0;
+        } else {
+            return (assets * _totalSupply) / _totalAssets;
+        }
+    }
+
+    // -- Portfolio methods --
     function allowInstrument(IDebtInstrument instrument, bool isAllowed) external onlyRole(MANAGER_ROLE) {
         isInstrumentAllowed[instrument] = isAllowed;
         emit AllowedInstrumentChanged(instrument, isAllowed);
@@ -188,78 +357,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         }
     }
 
-    function previewDeposit(uint256 assets) external view returns (uint256) {
-        require(block.timestamp < endDate, "FP:End date elapsed");
-        return depositStrategy.previewDeposit(assets);
+    function cancelInstrument(IDebtInstrument instrument, uint256 instrumentId) external onlyRole(MANAGER_ROLE) {
+        instrument.cancel(instrumentId);
+        valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
     }
 
-    /* @notice This contract is upgradeable and interacts with settable deposit strategies,
-     * that may change over the contract's lifespan. As a safety measure, we recommend approving
-     * this contract with the desired deposit amount instead of performing infinite allowance.
-     */
-    function deposit(uint256 assets, address receiver) external override whenNotPaused returns (uint256) {
-        (uint256 shares, uint256 depositFee) = depositStrategy.onDeposit(msg.sender, assets, receiver);
-        require(assets >= depositFee, "FP:Fee bigger than assets");
-        _executeDeposit(receiver, shares, assets, depositFee);
-        return shares;
-    }
-
-    function mint(uint256 shares, address receiver) external whenNotPaused returns (uint256) {
-        (uint256 assets, uint256 mintFee) = depositStrategy.onMint(msg.sender, shares, receiver);
-        _executeDeposit(receiver, shares, assets + mintFee, mintFee);
-        return assets + mintFee;
-    }
-
-    function _executeDeposit(
-        address receiver,
-        uint256 shares,
-        uint256 transferredAssets,
-        uint256 actionFee
-    ) internal {
-        require(receiver != address(this), "FP:Wrong receiver/owner");
-        require(block.timestamp < endDate, "FP:End date elapsed");
-        uint256 depositedAssets = transferredAssets - actionFee;
-        require(depositedAssets > 0 && shares > 0, "FP:Operation not allowed");
-        (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
-        require(depositedAssets + _totalAssets <= maxSize, "FP:Portfolio is full");
-
-        update();
-        virtualTokenBalance += transferredAssets;
-        _mint(receiver, shares);
-        asset.safeTransferFrom(msg.sender, address(this), transferredAssets);
-        payAllFees(protocolFee, managerFee, actionFee);
-        emit Deposit(msg.sender, receiver, transferredAssets, shares);
-    }
-
-    function previewMint(uint256 shares) external view returns (uint256) {
-        require(block.timestamp < endDate, "FP:End date elapsed");
-        return depositStrategy.previewMint(shares);
-    }
-
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) external virtual whenNotPaused returns (uint256) {
-        (uint256 assets, uint256 redeemFee) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
-        _executeWithdraw(owner, receiver, shares, assets, redeemFee);
-        return assets;
-    }
-
-    function maxRedeem(address owner) external view returns (uint256) {
-        if (paused()) {
-            return 0;
-        }
-        return Math.min(balanceOf(owner), withdrawStrategy.maxRedeem(owner));
-    }
-
-    function transfer(address recipient, uint256 amount)
-        public
-        override(ERC20Upgradeable, IERC20Upgradeable)
-        whenNotPaused
-        returns (bool)
-    {
-        return super.transfer(recipient, amount);
+    function markInstrumentAsDefaulted(IDebtInstrument instrument, uint256 instrumentId) external onlyRole(MANAGER_ROLE) {
+        instrument.markAsDefaulted(instrumentId);
+        valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
     }
 
     function repay(
@@ -281,13 +386,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit InstrumentRepaid(instrument, instrumentId, assets);
     }
 
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes calldata
-    ) external pure returns (bytes4) {
-        return IERC721Receiver.onERC721Received.selector;
+    function liquidAssets() public view returns (uint256) {
+        (uint256 accruedProtocolFee, uint256 accruedManagerFee) = accruedFee();
+        uint256 dueFees = accruedProtocolFee + accruedManagerFee + unpaidManagerFee + unpaidProtocolFee;
+        return virtualTokenBalance > dueFees ? virtualTokenBalance - dueFees : 0;
+    }
+
+    function liquidValue() public view returns (uint256) {
+        return virtualTokenBalance;
     }
 
     function payFeeAndUpdate() external {
@@ -343,172 +449,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit FeePaid(feeReceiver, fee);
     }
 
-    function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
-        require(_valuationStrategy != valuationStrategy, "FP:Value has to be different");
-        valuationStrategy = _valuationStrategy;
-        emit ValuationStrategyChanged(_valuationStrategy);
-    }
-
-    function convertToAssets(uint256 sharesAmount) public view returns (uint256) {
-        return _convertToAssets(sharesAmount, totalAssets());
-    }
-
-    function _convertToAssets(uint256 sharesAmount, uint256 _totalAssets) internal view returns (uint256) {
-        uint256 _totalSupply = totalSupply();
-        if (_totalSupply == 0) {
-            return 0;
-        }
-        return (sharesAmount * _totalAssets) / _totalSupply;
-    }
-
-    function totalAssetsBeforeAccruedFee() internal view returns (uint256) {
-        uint256 _totalAssets = virtualTokenBalance + valuationStrategy.calculateValue(this);
-        uint256 unpaidFees = unpaidProtocolFee + unpaidManagerFee;
-        return unpaidFees > _totalAssets ? 0 : _totalAssets - unpaidFees;
-    }
-
-    function totalAssets() public view override returns (uint256) {
-        (uint256 _totalAssets, , ) = getTotalAssetsAndFee();
-        return _totalAssets;
-    }
-
-    function liquidAssets() public view returns (uint256) {
-        (uint256 accruedProtocolFee, uint256 accruedManagerFee) = accruedFee();
-        uint256 dueFees = accruedProtocolFee + accruedManagerFee + unpaidManagerFee + unpaidProtocolFee;
-        return virtualTokenBalance > dueFees ? virtualTokenBalance - dueFees : 0;
-    }
-
-    function getTotalAssetsAndFee()
-        internal
-        view
-        returns (
-            uint256 totalAssetsAfterFee,
-            uint256 protocolFee,
-            uint256 managerFee
-        )
-    {
-        uint256 assetsBeforeFee = totalAssetsBeforeAccruedFee();
-        (uint256 accruedProtocolFee, uint256 accruedManagerFee) = _accruedFee(assetsBeforeFee);
-        return (
-            assetsBeforeFee - accruedProtocolFee - accruedManagerFee,
-            accruedProtocolFee + unpaidProtocolFee,
-            accruedManagerFee + unpaidManagerFee
-        );
-    }
-
-    function convertToShares(uint256 assets) public view returns (uint256) {
-        return _convertToShares(assets, totalAssets());
-    }
-
-    function _convertToShares(uint256 assets, uint256 _totalAssets) internal view returns (uint256) {
-        uint256 _totalSupply = totalSupply();
-        if (_totalSupply == 0) {
-            return assets;
-        } else if (_totalAssets == 0) {
-            return 0;
-        } else {
-            return (assets * _totalSupply) / _totalAssets;
-        }
-    }
-
-    function maxMint(address receiver) external view returns (uint256) {
-        if (paused() || block.timestamp >= endDate) {
-            return 0;
-        }
-        if (totalAssets() >= maxSize) {
-            return 0;
-        }
-        return depositStrategy.maxMint(receiver);
-    }
-
-    function previewRedeem(uint256 shares) external view virtual returns (uint256) {
-        return withdrawStrategy.previewRedeem(shares);
-    }
-
-    function liquidValue() public view returns (uint256) {
-        return virtualTokenBalance;
-    }
-
-    function maxDeposit(address receiver) external view returns (uint256) {
-        if (paused() || block.timestamp >= endDate) {
-            return 0;
-        }
-        if (totalAssets() >= maxSize) {
-            return 0;
-        }
-        return depositStrategy.maxDeposit(receiver);
-    }
-
-    function maxWithdraw(address owner) external view virtual returns (uint256) {
-        if (paused()) {
-            return 0;
-        }
-        return Math.min(liquidAssets(), withdrawStrategy.maxWithdraw(owner));
-    }
-
-    function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
-        require(_maxSize != maxSize, "FP:Value has to be different");
-        maxSize = _maxSize;
-        emit MaxSizeChanged(_maxSize);
-    }
-
-    function cancelInstrument(IDebtInstrument instrument, uint256 instrumentId) external onlyRole(MANAGER_ROLE) {
-        instrument.cancel(instrumentId);
-        valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
-    }
-
-    function markInstrumentAsDefaulted(IDebtInstrument instrument, uint256 instrumentId) external onlyRole(MANAGER_ROLE) {
-        instrument.markAsDefaulted(instrumentId);
-        valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
-    }
-
-    function _burnFrom(
-        address owner,
-        address spender,
-        uint256 shares
-    ) internal {
-        if (spender != owner) {
-            uint256 allowed = allowance(owner, msg.sender);
-            require(allowed >= shares, "ERC20: decreased allowance below zero");
-            _approve(owner, msg.sender, allowed - shares);
-        }
-        _burn(owner, shares);
-    }
-
-    function previewWithdraw(uint256 assets) public view returns (uint256) {
-        return withdrawStrategy.previewWithdraw(assets);
-    }
-
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) external whenNotPaused returns (uint256) {
-        (uint256 shares, uint256 withdrawFee) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
-        _executeWithdraw(owner, receiver, shares, assets, withdrawFee);
-        return shares;
-    }
-
-    function _executeWithdraw(
-        address owner,
-        address receiver,
-        uint256 shares,
-        uint256 assets,
-        uint256 actionFee
-    ) internal {
-        require(receiver != address(this) && owner != address(this), "FP:Wrong receiver/owner");
-        require(assets > 0 && shares > 0, "FP:Operation not allowed");
-        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
-        require(assets + protocolFee + managerFee + actionFee <= virtualTokenBalance, "FP:Not enough liquidity");
-
-        update();
-        _burnFrom(owner, msg.sender, shares);
-        virtualTokenBalance -= assets;
-        asset.safeTransfer(receiver, assets);
-        payAllFees(protocolFee, managerFee, actionFee);
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
-
     function accruedFee() public view returns (uint256 accruedProtocolFee, uint256 accruedManagerFee) {
         return _accruedFee(totalAssetsBeforeAccruedFee());
     }
@@ -525,6 +465,27 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         } else {
             return (calculatedProtocolFee, calculatedManagerFee);
         }
+    }
+
+    // -- Setters --
+    function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
+        require(_withdrawStrategy != withdrawStrategy, "FP:Value has to be different");
+        _setWithdrawStrategy(_withdrawStrategy);
+    }
+
+    function _setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) private {
+        withdrawStrategy = _withdrawStrategy;
+        emit WithdrawStrategyChanged(_withdrawStrategy);
+    }
+
+    function setDepositStrategy(IDepositStrategy _depositStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
+        require(_depositStrategy != depositStrategy, "FP:Value has to be different");
+        _setDepositStrategy(_depositStrategy);
+    }
+
+    function _setDepositStrategy(IDepositStrategy _depositStrategy) private {
+        depositStrategy = _depositStrategy;
+        emit DepositStrategyChanged(_depositStrategy);
     }
 
     function setTransferStrategy(ITransferStrategy _transferStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
@@ -547,6 +508,18 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit FeeStrategyChanged(_feeStrategy);
     }
 
+    function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
+        require(_valuationStrategy != valuationStrategy, "FP:Value has to be different");
+        valuationStrategy = _valuationStrategy;
+        emit ValuationStrategyChanged(_valuationStrategy);
+    }
+
+    function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
+        require(_maxSize != maxSize, "FP:Value has to be different");
+        maxSize = _maxSize;
+        emit MaxSizeChanged(_maxSize);
+    }
+
     function setEndDate(uint256 newEndDate) external onlyRole(MANAGER_ROLE) {
         require(endDate > block.timestamp, "FP:End date elapsed");
         require(
@@ -566,6 +539,45 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit ManagerFeeBeneficiaryChanged(newManagerFeeBeneficiary);
     }
 
+    // -- ERC721 methods --
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
+    }
+
+    // -- EIP165 --
+    function supportsInterface(bytes4 interfaceID) public view override(AccessControlEnumerableUpgradeable, IERC165) returns (bool) {
+        return
+            (interfaceID == type(IERC165).interfaceId ||
+                interfaceID == type(IERC20).interfaceId ||
+                interfaceID == ERC20Upgradeable.name.selector ||
+                interfaceID == ERC20Upgradeable.symbol.selector ||
+                interfaceID == ERC20Upgradeable.decimals.selector ||
+                interfaceID == type(IERC4626).interfaceId) || super.supportsInterface(interfaceID);
+    }
+
+    // -- ERC20 methods --
+    function _approve(
+        address owner,
+        address spender,
+        uint256 amount
+    ) internal override whenNotPaused {
+        super._approve(owner, spender, amount);
+    }
+
+    function transfer(address recipient, uint256 amount)
+        public
+        override(ERC20Upgradeable, IERC20Upgradeable)
+        whenNotPaused
+        returns (bool)
+    {
+        return super.transfer(recipient, amount);
+    }
+
     function _transfer(
         address sender,
         address recipient,
@@ -575,21 +587,16 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         super._transfer(sender, recipient, amount);
     }
 
-    function _approve(
+    function _burnFrom(
         address owner,
         address spender,
-        uint256 amount
-    ) internal override whenNotPaused {
-        super._approve(owner, spender, amount);
-    }
-
-    function supportsInterface(bytes4 interfaceID) public view override(AccessControlEnumerableUpgradeable, IERC165) returns (bool) {
-        return
-            (interfaceID == type(IERC165).interfaceId ||
-                interfaceID == type(IERC20).interfaceId ||
-                interfaceID == ERC20Upgradeable.name.selector ||
-                interfaceID == ERC20Upgradeable.symbol.selector ||
-                interfaceID == ERC20Upgradeable.decimals.selector ||
-                interfaceID == type(IERC4626).interfaceId) || super.supportsInterface(interfaceID);
+        uint256 shares
+    ) internal {
+        if (spender != owner) {
+            uint256 allowed = allowance(owner, msg.sender);
+            require(allowed >= shares, "ERC20: decreased allowance below zero");
+            _approve(owner, msg.sender, allowed - shares);
+        }
+        _burn(owner, shares);
     }
 }
