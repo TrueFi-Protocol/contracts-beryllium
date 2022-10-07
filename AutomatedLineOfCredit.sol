@@ -243,26 +243,19 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function convertToAssets(uint256 sharesAmount) public view returns (uint256) {
-        return _convertToAssets(sharesAmount, totalAssets());
-    }
-
-    function _convertToAssets(uint256 sharesAmount, uint256 _totalAssets) public view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return 0;
         }
-        return (sharesAmount * _totalAssets) / _totalSupply;
+        return (sharesAmount * totalAssets()) / _totalSupply;
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
-        return _convertToShares(assets, totalAssets());
-    }
-
-    function _convertToShares(uint256 assets, uint256 _totalAssets) public view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return assets;
         } else {
+            uint256 _totalAssets = totalAssets();
             assert(_totalAssets != 0);
             return (assets * _totalSupply) / _totalAssets;
         }

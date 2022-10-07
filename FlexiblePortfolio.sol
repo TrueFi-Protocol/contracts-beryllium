@@ -270,28 +270,20 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function convertToAssets(uint256 sharesAmount) public view returns (uint256) {
-        return _convertToAssets(sharesAmount, totalAssets());
-    }
-
-    function _convertToAssets(uint256 sharesAmount, uint256 _totalAssets) internal view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return 0;
         }
-        return (sharesAmount * _totalAssets) / _totalSupply;
+        return (sharesAmount * totalAssets()) / _totalSupply;
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
-        return _convertToShares(assets, totalAssets());
-    }
-
-    function _convertToShares(uint256 assets, uint256 _totalAssets) internal view returns (uint256) {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             return assets;
-        } else if (_totalAssets == 0) {
-            return 0;
         } else {
+            uint256 _totalAssets = totalAssets();
+            require(_totalAssets > 0, "FP:Infinite value");
             return (assets * _totalSupply) / _totalAssets;
         }
     }

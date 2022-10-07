@@ -31,8 +31,4 @@ contract FlexiblePortfolioHarness is FlexiblePortfolio {
     function lastUpdateTimeHarness() public view returns (uint256) {
         return lastUpdateTime;
     }
-
-    function _convertToSharesHarness(uint256 assets, uint256 _totalAssets) public view returns (uint256) {
-        return _convertToShares(assets, _totalAssets);
-    }
 }
