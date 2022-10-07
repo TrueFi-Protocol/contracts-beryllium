@@ -392,10 +392,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return virtualTokenBalance > dueFees ? virtualTokenBalance - dueFees : 0;
     }
 
-    function liquidValue() public view returns (uint256) {
-        return virtualTokenBalance;
-    }
-
     function payFeeAndUpdate() external {
         (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
         update();
@@ -567,15 +563,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 amount
     ) internal override whenNotPaused {
         super._approve(owner, spender, amount);
-    }
-
-    function transfer(address recipient, uint256 amount)
-        public
-        override(ERC20Upgradeable, IERC20Upgradeable)
-        whenNotPaused
-        returns (bool)
-    {
-        return super.transfer(recipient, amount);
     }
 
     function _transfer(
