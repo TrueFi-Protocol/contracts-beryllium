@@ -8,7 +8,7 @@ interface IERC4626 is IERC20Upgradeable, IERC20MetadataUpgradeable {
 
     event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
-    function asset() external returns (IERC20Metadata asset);
+    function asset() external view returns (IERC20Metadata asset);
 
     function totalAssets() external view returns (uint256 totalManagedAssets);
 
