@@ -148,7 +148,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         virtualTokenBalance += transferredAssets;
         _mint(receiver, shares);
         asset.safeTransferFrom(msg.sender, address(this), transferredAssets);
-        payAllFees(protocolFee, managerFee, actionFee);
+        payAllFees(actionFee, protocolFee, managerFee);
         emit Deposit(msg.sender, receiver, transferredAssets, shares);
     }
 
@@ -188,7 +188,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         _burnFrom(owner, msg.sender, shares);
         virtualTokenBalance -= assets;
         asset.safeTransfer(receiver, assets);
-        payAllFees(protocolFee, managerFee, actionFee);
+        payAllFees(actionFee, protocolFee, managerFee);
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
@@ -306,7 +306,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
         update();
         virtualTokenBalance -= principalAmount;
-        payAllFees(protocolFee, managerFee, 0);
+        payAllFees(0, protocolFee, managerFee);
 
         valuationStrategy.onInstrumentFunded(this, instrument, instrumentId);
         asset.safeTransfer(borrower, principalAmount);
@@ -349,7 +349,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         update();
         virtualTokenBalance += assets;
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        payAllFees(protocolFee, managerFee, 0);
+        payAllFees(0, protocolFee, managerFee);
         emit InstrumentRepaid(instrument, instrumentId, assets);
     }
 
@@ -362,7 +362,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     function payFeeAndUpdate() external {
         (uint256 protocolFee, uint256 managerFee) = getFees();
         update();
-        payAllFees(protocolFee, managerFee, 0);
+        payAllFees(0, protocolFee, managerFee);
     }
 
     function update() internal {
@@ -372,44 +372,41 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function payAllFees(
+        uint256 managerActionFee,
         uint256 protocolFee,
-        uint256 managerContinuousFee,
-        uint256 managerActionFee
+        uint256 managerContinuousFee
     ) internal {
-        payProtocolFee(protocolFee);
-        payManagerFee(managerContinuousFee, managerActionFee);
+        // Caller must have already checked that the action fee is payable.
+        // A managerActionFee must always be paid first before any other fee.
+        assert(virtualTokenBalance >= managerActionFee);
+        virtualTokenBalance -= managerActionFee;
+        emit FeePaid(managerFeeBeneficiary, managerActionFee);
+
+        uint256 paidProtocolFee;
+        (unpaidProtocolFee, paidProtocolFee) = splitUnpaidAndPaidFee(protocolFee);
+        virtualTokenBalance -= paidProtocolFee;
+        emit FeePaid(protocolConfig.protocolAddress(), paidProtocolFee);
+
+        uint256 paidManagerContinuousFee;
+        (unpaidManagerFee, paidManagerContinuousFee) = splitUnpaidAndPaidFee(managerContinuousFee);
+        virtualTokenBalance -= paidManagerContinuousFee;
+        emit FeePaid(managerFeeBeneficiary, paidManagerContinuousFee);
+
+        asset.safeTransfer(protocolConfig.protocolAddress(), paidProtocolFee);
+        asset.safeTransfer(managerFeeBeneficiary, managerActionFee + paidManagerContinuousFee);
     }
 
-    function payManagerFee(uint256 continuousFee, uint256 actionFee) internal {
-        uint256 _virtualTokenBalance = virtualTokenBalance;
-        uint256 continuousFeeToPay;
-        if (_virtualTokenBalance < continuousFee) {
-            continuousFeeToPay = _virtualTokenBalance;
-            unpaidManagerFee = continuousFee - _virtualTokenBalance;
+    function splitUnpaidAndPaidFee(uint256 fee) private view returns (uint256, uint256) {
+        uint256 unpaidFee;
+        uint256 paidFee;
+        if (virtualTokenBalance < fee) {
+            unpaidFee = fee - virtualTokenBalance;
+            paidFee = virtualTokenBalance;
         } else {
-            continuousFeeToPay = continuousFee;
-            unpaidManagerFee = 0;
+            unpaidFee = 0;
+            paidFee = fee;
         }
-        payFee(managerFeeBeneficiary, continuousFeeToPay + actionFee);
-    }
-
-    function payProtocolFee(uint256 fee) internal {
-        uint256 feeToPay;
-        uint256 _virtualTokenBalance = virtualTokenBalance;
-        if (_virtualTokenBalance < fee) {
-            feeToPay = _virtualTokenBalance;
-            unpaidProtocolFee = fee - _virtualTokenBalance;
-        } else {
-            feeToPay = fee;
-            unpaidProtocolFee = 0;
-        }
-        payFee(protocolConfig.protocolAddress(), feeToPay);
-    }
-
-    function payFee(address feeReceiver, uint256 fee) internal {
-        virtualTokenBalance -= fee;
-        asset.safeTransfer(feeReceiver, fee);
-        emit FeePaid(feeReceiver, fee);
+        return (unpaidFee, paidFee);
     }
 
     function getFees() public view returns (uint256 protocolFee, uint256 managerFee) {
