@@ -101,17 +101,6 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         return assets;
     }
 
-    function getTotalAssetsAndFee() internal view returns (uint256, uint256) {
-        uint256 assetsBeforeFee = _totalAssetsBeforeAccruedFee(totalDebt());
-        uint256 fee = _accruedFee(assetsBeforeFee);
-        return (assetsBeforeFee - fee, fee + unpaidFee);
-    }
-
-    function _totalAssetsBeforeAccruedFee(uint256 debt) internal view returns (uint256) {
-        uint256 assetsBeforeFee = virtualTokenBalance + debt;
-        return unpaidFee > assetsBeforeFee ? 0 : assetsBeforeFee - unpaidFee;
-    }
-
     /* @notice This contract is upgradeable and interacts with settable deposit strategies,
      * that may change over the contract's lifespan. As a safety measure, we recommend approving
      * this contract with the desired deposit amount instead of performing infinite allowance.
@@ -178,7 +167,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(receiver != address(this), "AutomatedLineOfCredit: Portfolio cannot be the receiver");
         require(owner != address(this), "AutomatedLineOfCredit: Portfolio cannot be the owner");
         require(assets > 0 && shares > 0, "AutomatedLineOfCredit: Operation not allowed");
-        (, uint256 fee) = getTotalAssetsAndFee();
+        uint256 fee = getFee();
         require(assets + fee <= virtualTokenBalance, "AutomatedLineOfCredit: Operation exceeds portfolio liquidity");
 
         update();
@@ -266,7 +255,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
         require(block.timestamp < endDate, "AutomatedLineOfCredit: Portfolio end date has elapsed");
         require(assets > 0, "AutomatedLineOfCredit: Cannot borrow zero assets");
-        (, uint256 fee) = getTotalAssetsAndFee();
+        uint256 fee = getFee();
         require(assets + fee <= virtualTokenBalance, "AutomatedLineOfCredit: Amount exceeds portfolio balance");
 
         update();
@@ -280,7 +269,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     function repay(uint256 assets) external whenNotPaused {
         assert(borrower != address(this));
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
-        (, uint256 fee) = getTotalAssetsAndFee();
+        uint256 fee = getFee();
         update();
         require(assets <= borrowedAmount + accruedInterest, "AutomatedLineOfCredit: Amount must be less than total debt");
 
@@ -298,7 +287,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
 
         uint256 _totalDebt = totalDebt();
-        (, uint256 fee) = getTotalAssetsAndFee();
+        uint256 fee = getFee();
         update();
         borrowedAmount = 0;
         accruedInterest = 0;
@@ -342,7 +331,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function liquidAssets() public view returns (uint256) {
-        uint256 dueFee = unpaidFee + accruedFee();
+        uint256 dueFee = getFee();
         return virtualTokenBalance > dueFee ? virtualTokenBalance - dueFee : 0;
     }
 
@@ -390,7 +379,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function updateAndPayFee() external {
-        (, uint256 fee) = getTotalAssetsAndFee();
+        uint256 fee = getFee();
         update();
         payFee(fee);
     }
@@ -417,17 +406,29 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         emit FeePaid(protocolAddress, feeToPay);
     }
 
-    function accruedFee() public view returns (uint256) {
-        return _accruedFee(_totalAssetsBeforeAccruedFee(totalDebt()));
+    function getFee() public view returns (uint256 fee) {
+        (, fee) = getTotalAssetsAndFee();
+        return fee;
     }
 
-    function _accruedFee(uint256 _totalAssets) internal view returns (uint256) {
-        uint256 calculatedFee = ((block.timestamp - lastUpdateTime) * lastProtocolFeeRate * _totalAssets) / YEAR / BASIS_PRECISION;
-        if (calculatedFee > _totalAssets) {
-            return _totalAssets;
-        } else {
-            return calculatedFee;
+    function getTotalAssetsAndFee() public view returns (uint256, uint256) {
+        uint256 _totalAssets = virtualTokenBalance + totalDebt();
+
+        if (_totalAssets <= unpaidFee) {
+            return (0, _totalAssets);
         }
+        _totalAssets -= unpaidFee;
+
+        // lastUpdateTime can only be updated to block.timestamp in this contract,
+        // so this should always be true (assuming a monotone clock and no reordering).
+        assert(block.timestamp >= lastUpdateTime);
+        uint256 accruedFee = ((block.timestamp - lastUpdateTime) * lastProtocolFeeRate * _totalAssets) / YEAR / BASIS_PRECISION;
+        if (_totalAssets <= accruedFee) {
+            return (0, unpaidFee + _totalAssets);
+        }
+        _totalAssets -= accruedFee;
+
+        return (_totalAssets, unpaidFee + accruedFee);
     }
 
     function solveLinear(
