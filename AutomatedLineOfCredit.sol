@@ -266,11 +266,12 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         emit Borrowed(assets);
     }
 
-    function repay(uint256 assets) external whenNotPaused {
+    function repay(uint256 assets) public whenNotPaused {
         assert(borrower != address(this));
         require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
         uint256 fee = getFee();
         update();
+        require(assets > 0, "AutomatedLineOfCredit: Repayment amount must be greater than 0");
         require(assets <= borrowedAmount + accruedInterest, "AutomatedLineOfCredit: Amount must be less than total debt");
 
         if (assets > accruedInterest) {
@@ -279,27 +280,16 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         } else {
             accruedInterest -= assets;
         }
-        _executeRepay(assets, fee);
-    }
-
-    function repayInFull() external whenNotPaused {
-        assert(borrower != address(this));
-        require(msg.sender == borrower, "AutomatedLineOfCredit: Caller is not the borrower");
-
-        uint256 _totalDebt = totalDebt();
-        uint256 fee = getFee();
-        update();
-        borrowedAmount = 0;
-        accruedInterest = 0;
-        _executeRepay(_totalDebt, fee);
-    }
-
-    function _executeRepay(uint256 assets, uint256 fee) internal {
-        require(assets > 0, "AutomatedLineOfCredit: Repayment amount must be greater than 0");
-        asset.safeTransferFrom(borrower, address(this), assets);
         virtualTokenBalance += assets;
+
+        asset.safeTransferFrom(borrower, address(this), assets);
         payFee(fee);
         emit Repaid(assets);
+    }
+
+    function repayInFull() external {
+        repay(totalDebt());
+        assert(totalDebt() == 0);
     }
 
     function getStatus() public view returns (AutomatedLineOfCreditStatus) {
