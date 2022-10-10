@@ -325,16 +325,21 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function utilization() public view returns (uint256) {
-        uint256 debt = borrowedAmount;
-        if (debt == 0) {
+        if (borrowedAmount == 0) {
             return 0;
         }
-        uint256 _totalAssets = _totalAssetsBeforeAccruedFee(debt);
-        if (_totalAssets == 0 || debt > _totalAssets) {
+
+        uint256 nonAccruingAssets = virtualTokenBalance + borrowedAmount;
+        if (nonAccruingAssets <= unpaidFee) {
             return BASIS_PRECISION;
-        } else {
-            return (debt * BASIS_PRECISION) / _totalAssets;
         }
+        nonAccruingAssets -= unpaidFee;
+
+        if (nonAccruingAssets <= borrowedAmount) {
+            return BASIS_PRECISION;
+        }
+
+        return (borrowedAmount * BASIS_PRECISION) / nonAccruingAssets;
     }
 
     function liquidAssets() public view returns (uint256) {
