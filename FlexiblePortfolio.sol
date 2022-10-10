@@ -115,30 +115,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return _totalAssets;
     }
 
-    function getTotalAssetsAndFee()
-        internal
-        view
-        returns (
-            uint256 totalAssetsAfterFee,
-            uint256 protocolFee,
-            uint256 managerFee
-        )
-    {
-        uint256 assetsBeforeFee = totalAssetsBeforeAccruedFee();
-        (uint256 accruedProtocolFee, uint256 accruedManagerFee) = _accruedFee(assetsBeforeFee);
-        return (
-            assetsBeforeFee - accruedProtocolFee - accruedManagerFee,
-            accruedProtocolFee + unpaidProtocolFee,
-            accruedManagerFee + unpaidManagerFee
-        );
-    }
-
-    function totalAssetsBeforeAccruedFee() internal view returns (uint256) {
-        uint256 _totalAssets = virtualTokenBalance + valuationStrategy.calculateValue(this);
-        uint256 unpaidFees = unpaidProtocolFee + unpaidManagerFee;
-        return unpaidFees > _totalAssets ? 0 : _totalAssets - unpaidFees;
-    }
-
     /* @notice This contract is upgradeable and interacts with settable deposit strategies,
      * that may change over the contract's lifespan. As a safety measure, we recommend approving
      * this contract with the desired deposit amount instead of performing infinite allowance.
@@ -206,7 +182,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) internal {
         require(receiver != address(this) && owner != address(this), "FP:Wrong receiver/owner");
         require(assets > 0 && shares > 0, "FP:Operation not allowed");
-        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        (uint256 protocolFee, uint256 managerFee) = getFees();
         require(assets + protocolFee + managerFee + actionFee <= virtualTokenBalance, "FP:Not enough liquidity");
 
         update();
@@ -320,7 +296,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function fundInstrument(IDebtInstrument instrument, uint256 instrumentId) external onlyRole(MANAGER_ROLE) {
         require(isInstrumentAdded[instrument][instrumentId], "FP:Instrument not added");
-        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        (uint256 protocolFee, uint256 managerFee) = getFees();
         address borrower = instrument.recipient(instrumentId);
         uint256 principalAmount = instrument.principal(instrumentId);
         instrument.start(instrumentId);
@@ -367,7 +343,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         require(assets > 0, "FP:Amount can't be 0");
         require(instrument.recipient(instrumentId) == msg.sender, "FP:Wrong recipient");
         require(isInstrumentAdded[instrument][instrumentId], "FP:Instrument not added");
-        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        (uint256 protocolFee, uint256 managerFee) = getFees();
         instrument.repay(instrumentId, assets);
         valuationStrategy.onInstrumentUpdated(this, instrument, instrumentId);
 
@@ -379,13 +355,13 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function liquidAssets() public view returns (uint256) {
-        (uint256 accruedProtocolFee, uint256 accruedManagerFee) = accruedFee();
-        uint256 dueFees = accruedProtocolFee + accruedManagerFee + unpaidManagerFee + unpaidProtocolFee;
+        (uint256 protocolFee, uint256 managerFee) = getFees();
+        uint256 dueFees = protocolFee + managerFee;
         return virtualTokenBalance > dueFees ? virtualTokenBalance - dueFees : 0;
     }
 
     function payFeeAndUpdate() external {
-        (, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
+        (uint256 protocolFee, uint256 managerFee) = getFees();
         update();
         payAllFees(protocolFee, managerFee, 0);
     }
@@ -437,22 +413,46 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit FeePaid(feeReceiver, fee);
     }
 
-    function accruedFee() public view returns (uint256 accruedProtocolFee, uint256 accruedManagerFee) {
-        return _accruedFee(totalAssetsBeforeAccruedFee());
+    function getFees() public view returns (uint256 protocolFee, uint256 managerFee) {
+        (, protocolFee, managerFee) = getTotalAssetsAndFee();
+        return (protocolFee, managerFee);
     }
 
-    function _accruedFee(uint256 _totalAssets) internal view returns (uint256 accruedProtocolFee, uint256 accruedManagerFee) {
-        uint256 adjustedTotalAssets = (block.timestamp - lastUpdateTime) * _totalAssets;
-        uint256 calculatedProtocolFee = (adjustedTotalAssets * lastProtocolFeeRate) / YEAR / BASIS_PRECISION;
-        if (calculatedProtocolFee > _totalAssets) {
-            return (_totalAssets, 0);
+    function getTotalAssetsAndFee()
+        internal
+        view
+        returns (
+            uint256 _totalAssets,
+            uint256 protocolFee,
+            uint256 managerFee
+        )
+    {
+        _totalAssets = virtualTokenBalance + valuationStrategy.calculateValue(this);
+
+        uint256 unpaidFees = unpaidProtocolFee + unpaidManagerFee;
+        protocolFee = unpaidProtocolFee;
+        managerFee = unpaidManagerFee;
+        if (_totalAssets <= unpaidFees) {
+            return (0, protocolFee, managerFee);
         }
-        uint256 calculatedManagerFee = (adjustedTotalAssets * lastManagerFeeRate) / YEAR / BASIS_PRECISION;
-        if (calculatedProtocolFee + calculatedManagerFee > _totalAssets) {
-            return (calculatedProtocolFee, _totalAssets - calculatedProtocolFee);
-        } else {
-            return (calculatedProtocolFee, calculatedManagerFee);
+        _totalAssets -= unpaidFees;
+
+        // lastUpdateTime can only be updated to block.timestamp in this contract,
+        // so this should always be true (assuming a monotone clock and no reordering).
+        assert(block.timestamp >= lastUpdateTime);
+        uint256 timeAdjustedTotalAssets = _totalAssets * (block.timestamp - lastUpdateTime);
+        uint256 accruedProtocolFee = (timeAdjustedTotalAssets * lastProtocolFeeRate) / YEAR / BASIS_PRECISION;
+        uint256 accruedManagerFee = (timeAdjustedTotalAssets * lastManagerFeeRate) / YEAR / BASIS_PRECISION;
+
+        uint256 accruedFees = accruedProtocolFee + accruedManagerFee;
+        protocolFee += accruedProtocolFee;
+        managerFee += accruedManagerFee;
+        if (_totalAssets <= accruedFees) {
+            return (0, protocolFee, managerFee);
         }
+        _totalAssets -= accruedFees;
+
+        return (_totalAssets, protocolFee, managerFee);
     }
 
     // -- Setters --
