@@ -4,7 +4,6 @@ pragma solidity ^0.8.10;
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ERC20Upgradeable, IERC20Upgradeable, IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
@@ -235,14 +234,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         if (paused()) {
             return 0;
         }
-        return Math.min(liquidAssets(), withdrawStrategy.maxWithdraw(owner));
+        return withdrawStrategy.maxWithdraw(owner);
     }
 
     function maxRedeem(address owner) external view returns (uint256) {
         if (paused()) {
             return 0;
         }
-        return Math.min(balanceOf(owner), withdrawStrategy.maxRedeem(owner));
+        return withdrawStrategy.maxRedeem(owner);
     }
 
     function convertToAssets(uint256 sharesAmount) public view returns (uint256) {

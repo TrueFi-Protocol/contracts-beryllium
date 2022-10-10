@@ -2,7 +2,6 @@
 pragma solidity ^0.8.10;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -232,14 +231,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         if (paused()) {
             return 0;
         }
-        return Math.min(liquidAssets(), withdrawStrategy.maxWithdraw(owner));
+        return withdrawStrategy.maxWithdraw(owner);
     }
 
     function maxRedeem(address owner) external view returns (uint256) {
         if (paused()) {
             return 0;
         }
-        return Math.min(balanceOf(owner), withdrawStrategy.maxRedeem(owner));
+        return withdrawStrategy.maxRedeem(owner);
     }
 
     function convertToAssets(uint256 sharesAmount) public view returns (uint256) {

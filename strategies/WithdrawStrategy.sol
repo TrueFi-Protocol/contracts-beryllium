@@ -7,11 +7,13 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract WithdrawStrategy is IWithdrawStrategy {
     function maxWithdraw(address owner) external view returns (uint256) {
-        return IPortfolio(msg.sender).convertToAssets(IPortfolio(msg.sender).balanceOf(owner));
+        IPortfolio portfolio = IPortfolio(msg.sender);
+        return Math.min(previewRedeem(portfolio.balanceOf(owner)), portfolio.liquidAssets());
     }
 
-    function maxRedeem(address) external view returns (uint256) {
-        return IPortfolio(msg.sender).convertToShares(IPortfolio(msg.sender).liquidAssets());
+    function maxRedeem(address owner) external view returns (uint256) {
+        IPortfolio portfolio = IPortfolio(msg.sender);
+        return Math.min(portfolio.balanceOf(owner), previewWithdraw(portfolio.liquidAssets()));
     }
 
     function onWithdraw(
@@ -20,13 +22,7 @@ contract WithdrawStrategy is IWithdrawStrategy {
         address,
         address
     ) external view returns (uint256, uint256) {
-        uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
-        uint256 totalSupply = IPortfolio(msg.sender).totalSupply();
-        if (totalAssets == 0) {
-            return (0, 0);
-        } else {
-            return (Math.ceilDiv((assets * totalSupply), totalAssets), 0);
-        }
+        return (previewWithdraw(assets), 0);
     }
 
     function onRedeem(
@@ -35,20 +31,14 @@ contract WithdrawStrategy is IWithdrawStrategy {
         address,
         address
     ) external view returns (uint256, uint256) {
-        uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
-        uint256 totalSupply = IPortfolio(msg.sender).totalSupply();
-        if (totalSupply == 0) {
-            return (0, 0);
-        } else {
-            return (((shares * totalAssets) / totalSupply), 0);
-        }
+        return (previewRedeem(shares), 0);
     }
 
-    function previewRedeem(uint256 shares) external view returns (uint256) {
+    function previewRedeem(uint256 shares) public view returns (uint256) {
         return IPortfolio(msg.sender).convertToAssets(shares);
     }
 
-    function previewWithdraw(uint256 assets) external view returns (uint256) {
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
         uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
         uint256 totalSupply = IPortfolio(msg.sender).totalSupply();
         if (totalAssets == 0) {

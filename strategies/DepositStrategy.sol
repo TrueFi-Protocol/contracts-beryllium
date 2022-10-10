@@ -6,16 +6,12 @@ import {IPortfolio} from "../interfaces/IPortfolio.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract DepositStrategy is IDepositStrategy {
-    function maxDeposit(address sender) external view returns (uint256) {
-        return _maxDeposit(sender);
-    }
-
-    function _maxDeposit(address) internal view returns (uint256) {
+    function maxDeposit(address) public view returns (uint256) {
         return IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets();
     }
 
     function maxMint(address sender) external view returns (uint256) {
-        return IPortfolio(msg.sender).convertToShares(_maxDeposit(sender));
+        return previewDeposit(maxDeposit(sender));
     }
 
     function onDeposit(
@@ -23,7 +19,7 @@ contract DepositStrategy is IDepositStrategy {
         uint256 assets,
         address
     ) external view returns (uint256, uint256) {
-        return (IPortfolio(msg.sender).convertToShares(assets), 0);
+        return (previewDeposit(assets), 0);
     }
 
     function onMint(
@@ -31,18 +27,14 @@ contract DepositStrategy is IDepositStrategy {
         uint256 shares,
         address
     ) external view returns (uint256, uint256) {
-        return (_previewMint(shares), 0);
+        return (previewMint(shares), 0);
     }
 
-    function previewDeposit(uint256 assets) external view returns (uint256 shares) {
+    function previewDeposit(uint256 assets) public view returns (uint256 shares) {
         return IPortfolio(msg.sender).convertToShares(assets);
     }
 
-    function previewMint(uint256 shares) external view returns (uint256) {
-        return _previewMint(shares);
-    }
-
-    function _previewMint(uint256 shares) internal view returns (uint256) {
+    function previewMint(uint256 shares) public view returns (uint256) {
         uint256 totalAssets = IPortfolio(msg.sender).totalAssets();
         uint256 totalSupply = IPortfolio(msg.sender).totalSupply();
         if (totalSupply == 0) {
