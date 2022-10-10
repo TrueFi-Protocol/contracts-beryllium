@@ -120,7 +120,6 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
      */
     function deposit(uint256 assets, address receiver) external override whenNotPaused returns (uint256) {
         (uint256 shares, uint256 depositFee) = depositStrategy.onDeposit(msg.sender, assets, receiver);
-        require(assets >= depositFee, "FP:Fee bigger than assets");
         _executeDeposit(receiver, shares, assets, depositFee);
         return shares;
     }
@@ -139,6 +138,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     ) internal {
         require(receiver != address(this), "FP:Wrong receiver/owner");
         require(block.timestamp < endDate, "FP:End date elapsed");
+        require(transferredAssets >= actionFee, "FP:Fee bigger than assets");
         uint256 depositedAssets = transferredAssets - actionFee;
         require(depositedAssets > 0 && shares > 0, "FP:Operation not allowed");
         (uint256 _totalAssets, uint256 protocolFee, uint256 managerFee) = getTotalAssetsAndFee();
