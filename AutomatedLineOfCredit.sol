@@ -306,17 +306,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         if (borrowedAmount == 0) {
             return 0;
         }
-
-        uint256 nonAccruingAssets = virtualTokenBalance + borrowedAmount;
-        if (nonAccruingAssets <= unpaidFee) {
+        if (virtualTokenBalance <= unpaidFee) {
             return BASIS_PRECISION;
         }
-        nonAccruingAssets -= unpaidFee;
-
-        if (nonAccruingAssets <= borrowedAmount) {
-            return BASIS_PRECISION;
-        }
-
+        uint256 nonAccruingAssets = borrowedAmount + virtualTokenBalance - unpaidFee;
+        assert(nonAccruingAssets > 0);
         return (borrowedAmount * BASIS_PRECISION) / nonAccruingAssets;
     }
 
