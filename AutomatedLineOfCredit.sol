@@ -74,7 +74,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         );
         require(_duration > 0, "AutomatedLineOfCredit: Cannot have zero duration");
 
-        __Upgradeable_init(_protocolConfig.protocolAddress(), _protocolConfig.pauserAddress());
+        __Upgradeable_init(_protocolConfig.protocolAdmin(), _protocolConfig.pauserAddress());
         _grantRole(MANAGER_ROLE, _borrower);
         _grantRole(STRATEGY_ADMIN_ROLE, _borrower);
         protocolConfig = _protocolConfig;
@@ -384,10 +384,10 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
             feeToPay = fee;
             unpaidFee = 0;
         }
-        address protocolAddress = protocolConfig.protocolAddress();
+        address protocolTreasury = protocolConfig.protocolTreasury();
         virtualTokenBalance = _virtualTokenBalance - feeToPay;
-        asset.safeTransfer(protocolAddress, feeToPay);
-        emit FeePaid(protocolAddress, feeToPay);
+        asset.safeTransfer(protocolTreasury, feeToPay);
+        emit FeePaid(protocolTreasury, feeToPay);
     }
 
     function getFee() public view returns (uint256 fee) {

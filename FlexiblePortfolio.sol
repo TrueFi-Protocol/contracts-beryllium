@@ -82,7 +82,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         ERC20Metadata calldata tokenMetadata
     ) external initializer {
         require(_duration > 0, "FP:Duration can't be 0");
-        __Upgradeable_init(_protocolConfig.protocolAddress(), _protocolConfig.pauserAddress());
+        __Upgradeable_init(_protocolConfig.protocolAdmin(), _protocolConfig.pauserAddress());
         __ERC20_init(tokenMetadata.name, tokenMetadata.symbol);
         _grantRole(MANAGER_ROLE, _manager);
         _grantRole(STRATEGY_ADMIN_ROLE, _manager);
@@ -385,14 +385,15 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         uint256 paidProtocolFee;
         (unpaidProtocolFee, paidProtocolFee) = splitUnpaidAndPaidFee(protocolFee);
         virtualTokenBalance -= paidProtocolFee;
-        emit FeePaid(protocolConfig.protocolAddress(), paidProtocolFee);
+        address protocolTreasury = protocolConfig.protocolTreasury();
+        emit FeePaid(protocolTreasury, paidProtocolFee);
 
         uint256 paidManagerContinuousFee;
         (unpaidManagerFee, paidManagerContinuousFee) = splitUnpaidAndPaidFee(managerContinuousFee);
         virtualTokenBalance -= paidManagerContinuousFee;
         emit FeePaid(managerFeeBeneficiary, paidManagerContinuousFee);
 
-        asset.safeTransfer(protocolConfig.protocolAddress(), paidProtocolFee);
+        asset.safeTransfer(protocolTreasury, paidProtocolFee);
         asset.safeTransfer(managerFeeBeneficiary, managerActionFee + paidManagerContinuousFee);
     }
 
