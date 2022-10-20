@@ -6,16 +6,19 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IDebtInstrument} from "./interfaces/IDebtInstrument.sol";
 import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
 import {PortfolioFactory} from "./PortfolioFactory.sol";
+import {FeeStrategy, IFeeStrategy} from "./strategies/FeeStrategy.sol";
 
 contract FlexiblePortfolioFactory is PortfolioFactory {
+    event FeeStrategyCreated(address indexed feeStrategy, uint256 managerFeeRate);
+
     function createPortfolio(
         IERC20Metadata _asset,
         uint256 _duration,
         uint256 _maxSize,
-        IFlexiblePortfolio.Strategies calldata strategies,
+        IFlexiblePortfolio.Strategies memory strategies,
         IDebtInstrument[] calldata _allowedInstruments,
         IFlexiblePortfolio.ERC20Metadata calldata tokenMetadata
-    ) external onlyRole(MANAGER_ROLE) {
+    ) public onlyRole(MANAGER_ROLE) {
         bytes memory initCalldata = abi.encodeWithSelector(
             IFlexiblePortfolio.initialize.selector,
             protocolConfig,
@@ -28,5 +31,27 @@ contract FlexiblePortfolioFactory is PortfolioFactory {
             tokenMetadata
         );
         _deployPortfolio(initCalldata);
+    }
+
+    function createPortfolioAndFeeStrategy(
+        IERC20Metadata _asset,
+        uint256 _duration,
+        uint256 _maxSize,
+        uint256 managerFeeRate,
+        IFlexiblePortfolio.Strategies calldata _strategies,
+        IDebtInstrument[] calldata _allowedInstruments,
+        IFlexiblePortfolio.ERC20Metadata calldata tokenMetadata
+    ) external onlyRole(MANAGER_ROLE) {
+        IFeeStrategy feeStrategy = new FeeStrategy(msg.sender, managerFeeRate);
+        emit FeeStrategyCreated(address(feeStrategy), managerFeeRate);
+
+        IFlexiblePortfolio.Strategies memory strategies = IFlexiblePortfolio.Strategies(
+            _strategies.depositStrategy,
+            _strategies.withdrawStrategy,
+            _strategies.transferStrategy,
+            _strategies.valuationStrategy,
+            feeStrategy
+        );
+        createPortfolio(_asset, _duration, _maxSize, strategies, _allowedInstruments, tokenMetadata);
     }
 }
