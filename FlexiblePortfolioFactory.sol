@@ -6,7 +6,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IDebtInstrument} from "./interfaces/IDebtInstrument.sol";
 import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
 import {PortfolioFactory} from "./PortfolioFactory.sol";
-import {FeeStrategy, IFeeStrategy} from "./strategies/FeeStrategy.sol";
+import {FeeStrategy, IFeeStrategy} from "./controllers/FeeStrategy.sol";
 
 contract FlexiblePortfolioFactory is PortfolioFactory {
     event FeeStrategyCreated(address indexed feeStrategy, uint256 managerFeeRate);
@@ -46,7 +46,7 @@ contract FlexiblePortfolioFactory is PortfolioFactory {
         emit FeeStrategyCreated(address(feeStrategy), managerFeeRate);
 
         IFlexiblePortfolio.Strategies memory strategies = IFlexiblePortfolio.Strategies(
-            _strategies.depositStrategy,
+            _strategies.depositController,
             _strategies.withdrawStrategy,
             _strategies.transferStrategy,
             _strategies.valuationStrategy,

@@ -4,7 +4,7 @@ pragma solidity ^0.8.10;
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IPortfolio} from "./IPortfolio.sol";
-import {IDepositStrategy} from "./IDepositStrategy.sol";
+import {IDepositController} from "./IDepositController.sol";
 import {IWithdrawStrategy} from "./IWithdrawStrategy.sol";
 import {ITransferStrategy} from "./ITransferStrategy.sol";
 
@@ -31,7 +31,7 @@ interface IAutomatedLineOfCredit is IPortfolio {
         address _borrower,
         uint256 _maxSize,
         InterestRateParameters memory _interestRateParameters,
-        IDepositStrategy _depositStrategy,
+        IDepositController _depositController,
         IWithdrawStrategy _withdrawStrategy,
         ITransferStrategy _transferStrategy,
         string memory name,

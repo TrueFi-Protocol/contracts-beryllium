@@ -3,7 +3,7 @@ pragma solidity ^0.8.10;
 
 import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IERC4626} from "./IERC4626.sol";
-import {IDepositStrategy} from "./IDepositStrategy.sol";
+import {IDepositController} from "./IDepositController.sol";
 import {IWithdrawStrategy} from "./IWithdrawStrategy.sol";
 import {ITransferStrategy} from "./ITransferStrategy.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";

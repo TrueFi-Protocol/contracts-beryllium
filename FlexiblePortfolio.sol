@@ -17,7 +17,7 @@ import {IERC4626} from "./interfaces/IERC4626.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
 import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
-import {IDepositStrategy} from "./interfaces/IDepositStrategy.sol";
+import {IDepositController} from "./interfaces/IDepositController.sol";
 import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
 import {IFeeStrategy} from "./interfaces/IFeeStrategy.sol";
 import {Upgradeable} from "./access/Upgradeable.sol";
@@ -48,7 +48,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     uint256 internal highestInstrumentEndDate;
 
     IValuationStrategy public valuationStrategy;
-    IDepositStrategy public depositStrategy;
+    IDepositController public depositController;
     IWithdrawStrategy public withdrawStrategy;
     ITransferStrategy public transferStrategy;
     IFeeStrategy public feeStrategy;
@@ -64,7 +64,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     event MaxSizeChanged(uint256 newMaxSize);
     event ManagerFeeBeneficiaryChanged(address indexed managerFeeBeneficiary);
     event ValuationStrategyChanged(IValuationStrategy indexed newStrategy);
-    event DepositStrategyChanged(IDepositStrategy indexed newStrategy);
+    event DepositControllerChanged(IDepositController indexed newStrategy);
     event WithdrawStrategyChanged(IWithdrawStrategy indexed newStrategy);
     event TransferStrategyChanged(ITransferStrategy indexed newStrategy);
     event FeeStrategyChanged(IFeeStrategy indexed newStrategy);
@@ -92,7 +92,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         asset = _asset;
         maxSize = _maxSize;
         _decimals = _asset.decimals();
-        _setDepositStrategy(_strategies.depositStrategy);
+        _setDepositController(_strategies.depositController);
         _setWithdrawStrategy(_strategies.withdrawStrategy);
         _setTransferStrategy(_strategies.transferStrategy);
         _setFeeStrategy(_strategies.feeStrategy);
@@ -119,13 +119,13 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
     function deposit(uint256 assets, address receiver) external override whenNotPaused returns (uint256) {
-        (uint256 shares, uint256 depositFee) = depositStrategy.onDeposit(msg.sender, assets, receiver);
+        (uint256 shares, uint256 depositFee) = depositController.onDeposit(msg.sender, assets, receiver);
         _executeDeposit(receiver, shares, assets, depositFee);
         return shares;
     }
 
     function mint(uint256 shares, address receiver) external whenNotPaused returns (uint256) {
-        (uint256 assets, uint256 mintFee) = depositStrategy.onMint(msg.sender, shares, receiver);
+        (uint256 assets, uint256 mintFee) = depositController.onMint(msg.sender, shares, receiver);
         _executeDeposit(receiver, shares, assets + mintFee, mintFee);
         return assets + mintFee;
     }
@@ -194,12 +194,12 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     function previewDeposit(uint256 assets) external view returns (uint256) {
         require(block.timestamp < endDate, "FP:End date elapsed");
-        return depositStrategy.previewDeposit(assets);
+        return depositController.previewDeposit(assets);
     }
 
     function previewMint(uint256 shares) external view returns (uint256) {
         require(block.timestamp < endDate, "FP:End date elapsed");
-        return depositStrategy.previewMint(shares);
+        return depositController.previewMint(shares);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
@@ -217,7 +217,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         if (totalAssets() >= maxSize) {
             return 0;
         }
-        return depositStrategy.maxDeposit(receiver);
+        return depositController.maxDeposit(receiver);
     }
 
     function maxMint(address receiver) external view returns (uint256) {
@@ -227,7 +227,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         if (totalAssets() >= maxSize) {
             return 0;
         }
-        return depositStrategy.maxMint(receiver);
+        return depositController.maxMint(receiver);
     }
 
     function maxWithdraw(address owner) external view virtual returns (uint256) {
@@ -463,14 +463,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit WithdrawStrategyChanged(_withdrawStrategy);
     }
 
-    function setDepositStrategy(IDepositStrategy _depositStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
-        require(_depositStrategy != depositStrategy, "FP:Value has to be different");
-        _setDepositStrategy(_depositStrategy);
+    function setDepositController(IDepositController _depositController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+        require(_depositController != depositController, "FP:Value has to be different");
+        _setDepositController(_depositController);
     }
 
-    function _setDepositStrategy(IDepositStrategy _depositStrategy) private {
-        depositStrategy = _depositStrategy;
-        emit DepositStrategyChanged(_depositStrategy);
+    function _setDepositController(IDepositController _depositController) private {
+        depositController = _depositController;
+        emit DepositControllerChanged(_depositController);
     }
 
     function setTransferStrategy(ITransferStrategy _transferStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {

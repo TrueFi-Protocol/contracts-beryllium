@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {IDepositStrategy} from "../interfaces/IDepositStrategy.sol";
+import {IDepositController} from "../interfaces/IDepositController.sol";
 import {IPortfolio} from "../interfaces/IPortfolio.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract DepositStrategy is IDepositStrategy {
+contract DepositController is IDepositController {
     function maxDeposit(address) public view returns (uint256) {
         return IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets();
     }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-interface IDepositStrategy {
+interface IDepositController {
     function onDeposit(
         address sender,
         uint256 amount,

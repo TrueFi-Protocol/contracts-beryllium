@@ -4,7 +4,7 @@ pragma solidity ^0.8.10;
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IDebtInstrument} from "./IDebtInstrument.sol";
-import {IDepositStrategy} from "./IDepositStrategy.sol";
+import {IDepositController} from "./IDepositController.sol";
 import {IWithdrawStrategy} from "./IWithdrawStrategy.sol";
 import {IValuationStrategy} from "./IValuationStrategy.sol";
 import {ITransferStrategy} from "./ITransferStrategy.sol";
@@ -18,7 +18,7 @@ interface IFlexiblePortfolio is IPortfolio {
     }
 
     struct Strategies {
-        IDepositStrategy depositStrategy;
+        IDepositController depositController;
         IWithdrawStrategy withdrawStrategy;
         ITransferStrategy transferStrategy;
         IValuationStrategy valuationStrategy;
