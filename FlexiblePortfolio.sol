@@ -18,7 +18,7 @@ import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
 import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
 import {IDepositController} from "./interfaces/IDepositController.sol";
-import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
+import {IWithdrawController} from "./interfaces/IWithdrawController.sol";
 import {IFeeStrategy} from "./interfaces/IFeeStrategy.sol";
 import {Upgradeable} from "./access/Upgradeable.sol";
 
@@ -49,7 +49,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
 
     IValuationStrategy public valuationStrategy;
     IDepositController public depositController;
-    IWithdrawStrategy public withdrawStrategy;
+    IWithdrawController public withdrawController;
     ITransferStrategy public transferStrategy;
     IFeeStrategy public feeStrategy;
 
@@ -65,7 +65,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     event ManagerFeeBeneficiaryChanged(address indexed managerFeeBeneficiary);
     event ValuationStrategyChanged(IValuationStrategy indexed newStrategy);
     event DepositControllerChanged(IDepositController indexed newStrategy);
-    event WithdrawStrategyChanged(IWithdrawStrategy indexed newStrategy);
+    event WithdrawControllerChanged(IWithdrawController indexed newStrategy);
     event TransferStrategyChanged(ITransferStrategy indexed newStrategy);
     event FeeStrategyChanged(IFeeStrategy indexed newStrategy);
 
@@ -93,7 +93,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         maxSize = _maxSize;
         _decimals = _asset.decimals();
         _setDepositController(_strategies.depositController);
-        _setWithdrawStrategy(_strategies.withdrawStrategy);
+        _setWithdrawController(_strategies.withdrawController);
         _setTransferStrategy(_strategies.transferStrategy);
         _setFeeStrategy(_strategies.feeStrategy);
         valuationStrategy = _strategies.valuationStrategy;
@@ -157,7 +157,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) external whenNotPaused returns (uint256) {
-        (uint256 shares, uint256 withdrawFee) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
+        (uint256 shares, uint256 withdrawFee) = withdrawController.onWithdraw(msg.sender, assets, receiver, owner);
         _executeWithdraw(owner, receiver, shares, assets, withdrawFee);
         return shares;
     }
@@ -167,7 +167,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address receiver,
         address owner
     ) external virtual whenNotPaused returns (uint256) {
-        (uint256 assets, uint256 redeemFee) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
+        (uint256 assets, uint256 redeemFee) = withdrawController.onRedeem(msg.sender, shares, receiver, owner);
         _executeWithdraw(owner, receiver, shares, assets, redeemFee);
         return assets;
     }
@@ -203,11 +203,11 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        return withdrawStrategy.previewWithdraw(assets);
+        return withdrawController.previewWithdraw(assets);
     }
 
     function previewRedeem(uint256 shares) external view virtual returns (uint256) {
-        return withdrawStrategy.previewRedeem(shares);
+        return withdrawController.previewRedeem(shares);
     }
 
     function maxDeposit(address receiver) external view returns (uint256) {
@@ -234,14 +234,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         if (paused()) {
             return 0;
         }
-        return withdrawStrategy.maxWithdraw(owner);
+        return withdrawController.maxWithdraw(owner);
     }
 
     function maxRedeem(address owner) external view returns (uint256) {
         if (paused()) {
             return 0;
         }
-        return withdrawStrategy.maxRedeem(owner);
+        return withdrawController.maxRedeem(owner);
     }
 
     function convertToAssets(uint256 sharesAmount) public view returns (uint256) {
@@ -453,14 +453,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     // -- Setters --
-    function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
-        require(_withdrawStrategy != withdrawStrategy, "FP:Value has to be different");
-        _setWithdrawStrategy(_withdrawStrategy);
+    function setWithdrawController(IWithdrawController _withdrawController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+        require(_withdrawController != withdrawController, "FP:Value has to be different");
+        _setWithdrawController(_withdrawController);
     }
 
-    function _setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) private {
-        withdrawStrategy = _withdrawStrategy;
-        emit WithdrawStrategyChanged(_withdrawStrategy);
+    function _setWithdrawController(IWithdrawController _withdrawController) private {
+        withdrawController = _withdrawController;
+        emit WithdrawControllerChanged(_withdrawController);
     }
 
     function setDepositController(IDepositController _depositController) external onlyRole(STRATEGY_ADMIN_ROLE) {

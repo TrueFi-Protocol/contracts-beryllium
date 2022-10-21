@@ -5,7 +5,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IPortfolio} from "./IPortfolio.sol";
 import {IDepositController} from "./IDepositController.sol";
-import {IWithdrawStrategy} from "./IWithdrawStrategy.sol";
+import {IWithdrawController} from "./IWithdrawController.sol";
 import {ITransferStrategy} from "./ITransferStrategy.sol";
 
 enum AutomatedLineOfCreditStatus {
@@ -32,7 +32,7 @@ interface IAutomatedLineOfCredit is IPortfolio {
         uint256 _maxSize,
         InterestRateParameters memory _interestRateParameters,
         IDepositController _depositController,
-        IWithdrawStrategy _withdrawStrategy,
+        IWithdrawController _withdrawController,
         ITransferStrategy _transferStrategy,
         string memory name,
         string memory symbol

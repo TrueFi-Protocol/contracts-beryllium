@@ -47,7 +47,7 @@ contract FlexiblePortfolioFactory is PortfolioFactory {
 
         IFlexiblePortfolio.Strategies memory strategies = IFlexiblePortfolio.Strategies(
             _strategies.depositController,
-            _strategies.withdrawStrategy,
+            _strategies.withdrawController,
             _strategies.transferStrategy,
             _strategies.valuationStrategy,
             feeStrategy

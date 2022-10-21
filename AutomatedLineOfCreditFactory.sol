@@ -12,7 +12,7 @@ contract AutomatedLineOfCreditFactory is PortfolioFactory {
         uint256 _maxSize,
         IAutomatedLineOfCredit.InterestRateParameters memory _interestRateParameters,
         address _depositController,
-        address _withdrawStrategy,
+        address _withdrawController,
         address _transferStrategy,
         string calldata name,
         string calldata symbol
@@ -26,7 +26,7 @@ contract AutomatedLineOfCreditFactory is PortfolioFactory {
             _maxSize,
             _interestRateParameters,
             _depositController,
-            _withdrawStrategy,
+            _withdrawController,
             _transferStrategy,
             name,
             symbol

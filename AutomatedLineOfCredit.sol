@@ -11,7 +11,7 @@ import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IDepositController} from "./interfaces/IDepositController.sol";
-import {IWithdrawStrategy} from "./interfaces/IWithdrawStrategy.sol";
+import {IWithdrawController} from "./interfaces/IWithdrawController.sol";
 import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
 
 import {ERC20Upgradeable, IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -42,11 +42,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     uint256 internal lastUpdateTime;
 
     IDepositController public depositController;
-    IWithdrawStrategy public withdrawStrategy;
+    IWithdrawController public withdrawController;
     ITransferStrategy public transferStrategy;
 
     event DepositControllerChanged(IDepositController indexed newStrategy);
-    event WithdrawStrategyChanged(IWithdrawStrategy indexed newStrategy);
+    event WithdrawControllerChanged(IWithdrawController indexed newStrategy);
     event TransferStrategyChanged(ITransferStrategy indexed newStrategy);
 
     event MaxSizeChanged(uint256 newMaxSize);
@@ -62,7 +62,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         uint256 _maxSize,
         InterestRateParameters memory _interestRateParameters,
         IDepositController _depositController,
-        IWithdrawStrategy _withdrawStrategy,
+        IWithdrawController _withdrawController,
         ITransferStrategy _transferStrategy,
         string memory name,
         string memory symbol
@@ -86,7 +86,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         interestRateParameters = _interestRateParameters;
         maxSize = _maxSize;
         _setDepositController(_depositController);
-        _setWithdrawStrategy(_withdrawStrategy);
+        _setWithdrawController(_withdrawController);
         _setTransferStrategy(_transferStrategy);
     }
 
@@ -142,7 +142,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         address receiver,
         address owner
     ) external whenNotPaused returns (uint256) {
-        (uint256 shares, ) = withdrawStrategy.onWithdraw(msg.sender, assets, receiver, owner);
+        (uint256 shares, ) = withdrawController.onWithdraw(msg.sender, assets, receiver, owner);
         _executeWithdraw(owner, receiver, assets, shares);
         return shares;
     }
@@ -152,7 +152,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         address receiver,
         address owner
     ) external whenNotPaused returns (uint256) {
-        (uint256 assets, ) = withdrawStrategy.onRedeem(msg.sender, shares, receiver, owner);
+        (uint256 assets, ) = withdrawController.onRedeem(msg.sender, shares, receiver, owner);
         _executeWithdraw(owner, receiver, assets, shares);
         return assets;
     }
@@ -189,11 +189,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        return withdrawStrategy.previewWithdraw(assets);
+        return withdrawController.previewWithdraw(assets);
     }
 
     function previewRedeem(uint256 shares) public view virtual returns (uint256) {
-        return withdrawStrategy.previewRedeem(shares);
+        return withdrawController.previewRedeem(shares);
     }
 
     function maxDeposit(address receiver) external view returns (uint256) {
@@ -220,14 +220,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         if (paused()) {
             return 0;
         }
-        return withdrawStrategy.maxWithdraw(owner);
+        return withdrawController.maxWithdraw(owner);
     }
 
     function maxRedeem(address owner) external view returns (uint256) {
         if (paused()) {
             return 0;
         }
-        return withdrawStrategy.maxRedeem(owner);
+        return withdrawController.maxRedeem(owner);
     }
 
     function convertToAssets(uint256 sharesAmount) public view returns (uint256) {
@@ -449,14 +449,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     // -- Setters --
-    function setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
-        require(_withdrawStrategy != withdrawStrategy, "AutomatedLineOfCredit: New withdraw strategy needs to be different");
-        _setWithdrawStrategy(_withdrawStrategy);
+    function setWithdrawController(IWithdrawController _withdrawController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+        require(_withdrawController != withdrawController, "AutomatedLineOfCredit: New withdraw controller needs to be different");
+        _setWithdrawController(_withdrawController);
     }
 
-    function _setWithdrawStrategy(IWithdrawStrategy _withdrawStrategy) private {
-        withdrawStrategy = _withdrawStrategy;
-        emit WithdrawStrategyChanged(_withdrawStrategy);
+    function _setWithdrawController(IWithdrawController _withdrawController) private {
+        withdrawController = _withdrawController;
+        emit WithdrawControllerChanged(_withdrawController);
     }
 
     function setDepositController(IDepositController _depositController) external onlyRole(STRATEGY_ADMIN_ROLE) {

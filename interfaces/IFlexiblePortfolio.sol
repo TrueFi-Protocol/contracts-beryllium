@@ -5,7 +5,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IDebtInstrument} from "./IDebtInstrument.sol";
 import {IDepositController} from "./IDepositController.sol";
-import {IWithdrawStrategy} from "./IWithdrawStrategy.sol";
+import {IWithdrawController} from "./IWithdrawController.sol";
 import {IValuationStrategy} from "./IValuationStrategy.sol";
 import {ITransferStrategy} from "./ITransferStrategy.sol";
 import {IFeeStrategy} from "./IFeeStrategy.sol";
@@ -19,7 +19,7 @@ interface IFlexiblePortfolio is IPortfolio {
 
     struct Strategies {
         IDepositController depositController;
-        IWithdrawStrategy withdrawStrategy;
+        IWithdrawController withdrawController;
         ITransferStrategy transferStrategy;
         IValuationStrategy valuationStrategy;
         IFeeStrategy feeStrategy;

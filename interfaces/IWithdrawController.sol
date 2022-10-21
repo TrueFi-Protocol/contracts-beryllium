@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-interface IWithdrawStrategy {
+interface IWithdrawController {
     function maxWithdraw(address owner) external view returns (uint256 assets);
 
     function maxRedeem(address owner) external view returns (uint256 shares);
