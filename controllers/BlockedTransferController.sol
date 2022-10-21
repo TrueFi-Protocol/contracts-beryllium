@@ -3,12 +3,12 @@ pragma solidity ^0.8.10;
 
 import {ITransferController} from "../interfaces/ITransferController.sol";
 
-contract SimpleTransferController is ITransferController {
+contract BlockedTransferController is ITransferController {
     function canTransfer(
         address,
         address,
         uint256
     ) public pure returns (bool) {
-        return true;
+        return false;
     }
 }
