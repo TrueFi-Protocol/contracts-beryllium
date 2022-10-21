@@ -13,7 +13,7 @@ contract AutomatedLineOfCreditFactory is PortfolioFactory {
         IAutomatedLineOfCredit.InterestRateParameters memory _interestRateParameters,
         address _depositController,
         address _withdrawController,
-        address _transferStrategy,
+        address _transferController,
         string calldata name,
         string calldata symbol
     ) external onlyRole(MANAGER_ROLE) {
@@ -27,7 +27,7 @@ contract AutomatedLineOfCreditFactory is PortfolioFactory {
             _interestRateParameters,
             _depositController,
             _withdrawController,
-            _transferStrategy,
+            _transferController,
             name,
             symbol
         );

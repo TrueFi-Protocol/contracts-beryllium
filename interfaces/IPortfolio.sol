@@ -5,7 +5,7 @@ import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IERC4626} from "./IERC4626.sol";
 import {IDepositController} from "./IDepositController.sol";
 import {IWithdrawController} from "./IWithdrawController.sol";
-import {ITransferStrategy} from "./ITransferStrategy.sol";
+import {ITransferController} from "./ITransferController.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
 interface IPortfolio is IERC4626, IERC165 {

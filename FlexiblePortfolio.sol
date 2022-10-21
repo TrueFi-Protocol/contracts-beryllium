@@ -16,7 +16,7 @@ import {IDebtInstrument} from "./interfaces/IDebtInstrument.sol";
 import {IERC4626} from "./interfaces/IERC4626.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IValuationStrategy} from "./interfaces/IValuationStrategy.sol";
-import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
+import {ITransferController} from "./interfaces/ITransferController.sol";
 import {IDepositController} from "./interfaces/IDepositController.sol";
 import {IWithdrawController} from "./interfaces/IWithdrawController.sol";
 import {IFeeStrategy} from "./interfaces/IFeeStrategy.sol";
@@ -50,7 +50,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     IValuationStrategy public valuationStrategy;
     IDepositController public depositController;
     IWithdrawController public withdrawController;
-    ITransferStrategy public transferStrategy;
+    ITransferController public transferController;
     IFeeStrategy public feeStrategy;
 
     mapping(IDebtInstrument => mapping(uint256 => bool)) public isInstrumentAdded;
@@ -66,7 +66,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     event ValuationStrategyChanged(IValuationStrategy indexed newStrategy);
     event DepositControllerChanged(IDepositController indexed newStrategy);
     event WithdrawControllerChanged(IWithdrawController indexed newStrategy);
-    event TransferStrategyChanged(ITransferStrategy indexed newStrategy);
+    event TransferControllerChanged(ITransferController indexed newStrategy);
     event FeeStrategyChanged(IFeeStrategy indexed newStrategy);
 
     event FeePaid(address indexed protocolAddress, uint256 amount);
@@ -94,7 +94,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         _decimals = _asset.decimals();
         _setDepositController(_strategies.depositController);
         _setWithdrawController(_strategies.withdrawController);
-        _setTransferStrategy(_strategies.transferStrategy);
+        _setTransferController(_strategies.transferController);
         _setFeeStrategy(_strategies.feeStrategy);
         valuationStrategy = _strategies.valuationStrategy;
 
@@ -473,14 +473,14 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit DepositControllerChanged(_depositController);
     }
 
-    function setTransferStrategy(ITransferStrategy _transferStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
-        require(_transferStrategy != transferStrategy, "FP:Value has to be different");
-        _setTransferStrategy(_transferStrategy);
+    function setTransferController(ITransferController _transferController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+        require(_transferController != transferController, "FP:Value has to be different");
+        _setTransferController(_transferController);
     }
 
-    function _setTransferStrategy(ITransferStrategy _transferStrategy) internal {
-        transferStrategy = _transferStrategy;
-        emit TransferStrategyChanged(_transferStrategy);
+    function _setTransferController(ITransferController _transferController) internal {
+        transferController = _transferController;
+        emit TransferControllerChanged(_transferController);
     }
 
     function setFeeStrategy(IFeeStrategy _feeStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
@@ -559,7 +559,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         address recipient,
         uint256 amount
     ) internal override whenNotPaused {
-        require(ITransferStrategy(transferStrategy).canTransfer(sender, recipient, amount), "FP:Operation not allowed");
+        require(ITransferController(transferController).canTransfer(sender, recipient, amount), "FP:Operation not allowed");
         super._transfer(sender, recipient, amount);
     }
 

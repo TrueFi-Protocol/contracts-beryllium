@@ -6,7 +6,7 @@ import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IPortfolio} from "./IPortfolio.sol";
 import {IDepositController} from "./IDepositController.sol";
 import {IWithdrawController} from "./IWithdrawController.sol";
-import {ITransferStrategy} from "./ITransferStrategy.sol";
+import {ITransferController} from "./ITransferController.sol";
 
 enum AutomatedLineOfCreditStatus {
     Open,
@@ -33,7 +33,7 @@ interface IAutomatedLineOfCredit is IPortfolio {
         InterestRateParameters memory _interestRateParameters,
         IDepositController _depositController,
         IWithdrawController _withdrawController,
-        ITransferStrategy _transferStrategy,
+        ITransferController _transferController,
         string memory name,
         string memory symbol
     ) external;

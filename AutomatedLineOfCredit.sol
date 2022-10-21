@@ -12,7 +12,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IDepositController} from "./interfaces/IDepositController.sol";
 import {IWithdrawController} from "./interfaces/IWithdrawController.sol";
-import {ITransferStrategy} from "./interfaces/ITransferStrategy.sol";
+import {ITransferController} from "./interfaces/ITransferController.sol";
 
 import {ERC20Upgradeable, IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
@@ -43,11 +43,11 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     IDepositController public depositController;
     IWithdrawController public withdrawController;
-    ITransferStrategy public transferStrategy;
+    ITransferController public transferController;
 
     event DepositControllerChanged(IDepositController indexed newStrategy);
     event WithdrawControllerChanged(IWithdrawController indexed newStrategy);
-    event TransferStrategyChanged(ITransferStrategy indexed newStrategy);
+    event TransferControllerChanged(ITransferController indexed newStrategy);
 
     event MaxSizeChanged(uint256 newMaxSize);
     event Borrowed(uint256 amount);
@@ -63,7 +63,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         InterestRateParameters memory _interestRateParameters,
         IDepositController _depositController,
         IWithdrawController _withdrawController,
-        ITransferStrategy _transferStrategy,
+        ITransferController _transferController,
         string memory name,
         string memory symbol
     ) public initializer {
@@ -87,7 +87,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         maxSize = _maxSize;
         _setDepositController(_depositController);
         _setWithdrawController(_withdrawController);
-        _setTransferStrategy(_transferStrategy);
+        _setTransferController(_transferController);
     }
 
     // -- ERC20 metadata --
@@ -469,14 +469,14 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         emit DepositControllerChanged(_depositController);
     }
 
-    function setTransferStrategy(ITransferStrategy _transferStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
-        require(_transferStrategy != transferStrategy, "AutomatedLineOfCredit: New transfer strategy needs to be different");
-        _setTransferStrategy(_transferStrategy);
+    function setTransferController(ITransferController _transferController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+        require(_transferController != transferController, "AutomatedLineOfCredit: New transfer controller needs to be different");
+        _setTransferController(_transferController);
     }
 
-    function _setTransferStrategy(ITransferStrategy _transferStrategy) internal {
-        transferStrategy = _transferStrategy;
-        emit TransferStrategyChanged(_transferStrategy);
+    function _setTransferController(ITransferController _transferController) internal {
+        transferController = _transferController;
+        emit TransferControllerChanged(_transferController);
     }
 
     function setMaxSize(uint256 _maxSize) external onlyRole(MANAGER_ROLE) {
@@ -510,7 +510,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         address recipient,
         uint256 amount
     ) internal override whenNotPaused {
-        require(transferStrategy.canTransfer(sender, recipient, amount), "AutomatedLineOfCredit: This transfer not permitted");
+        require(transferController.canTransfer(sender, recipient, amount), "AutomatedLineOfCredit: This transfer not permitted");
         super._transfer(sender, recipient, amount);
     }
 

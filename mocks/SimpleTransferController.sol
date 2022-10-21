@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import {ITransferStrategy} from "../interfaces/ITransferStrategy.sol";
+import {ITransferController} from "../interfaces/ITransferController.sol";
 
-contract SimpleTransferStrategy is ITransferStrategy {
+contract SimpleTransferController is ITransferController {
     function canTransfer(
         address,
         address,

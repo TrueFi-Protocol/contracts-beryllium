@@ -7,7 +7,7 @@ import {IDebtInstrument} from "./IDebtInstrument.sol";
 import {IDepositController} from "./IDepositController.sol";
 import {IWithdrawController} from "./IWithdrawController.sol";
 import {IValuationStrategy} from "./IValuationStrategy.sol";
-import {ITransferStrategy} from "./ITransferStrategy.sol";
+import {ITransferController} from "./ITransferController.sol";
 import {IFeeStrategy} from "./IFeeStrategy.sol";
 import {IPortfolio} from "./IPortfolio.sol";
 
@@ -20,7 +20,7 @@ interface IFlexiblePortfolio is IPortfolio {
     struct Strategies {
         IDepositController depositController;
         IWithdrawController withdrawController;
-        ITransferStrategy transferStrategy;
+        ITransferController transferController;
         IValuationStrategy valuationStrategy;
         IFeeStrategy feeStrategy;
     }
