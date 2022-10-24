@@ -15,7 +15,7 @@ contract FlexiblePortfolioFactory is PortfolioFactory {
         IERC20Metadata _asset,
         uint256 _duration,
         uint256 _maxSize,
-        IFlexiblePortfolio.Strategies memory strategies,
+        IFlexiblePortfolio.Controllers memory controllers,
         IDebtInstrument[] calldata _allowedInstruments,
         IFlexiblePortfolio.ERC20Metadata calldata tokenMetadata
     ) public onlyRole(MANAGER_ROLE) {
@@ -26,7 +26,7 @@ contract FlexiblePortfolioFactory is PortfolioFactory {
             _asset,
             msg.sender,
             _maxSize,
-            strategies,
+            controllers,
             _allowedInstruments,
             tokenMetadata
         );
@@ -38,20 +38,20 @@ contract FlexiblePortfolioFactory is PortfolioFactory {
         uint256 _duration,
         uint256 _maxSize,
         uint256 managerFeeRate,
-        IFlexiblePortfolio.Strategies calldata _strategies,
+        IFlexiblePortfolio.Controllers calldata _controllers,
         IDebtInstrument[] calldata _allowedInstruments,
         IFlexiblePortfolio.ERC20Metadata calldata tokenMetadata
     ) external onlyRole(MANAGER_ROLE) {
         IFeeStrategy feeStrategy = new FeeStrategy(msg.sender, managerFeeRate);
         emit FeeStrategyCreated(address(feeStrategy), managerFeeRate);
 
-        IFlexiblePortfolio.Strategies memory strategies = IFlexiblePortfolio.Strategies(
-            _strategies.depositController,
-            _strategies.withdrawController,
-            _strategies.transferController,
-            _strategies.valuationStrategy,
+        IFlexiblePortfolio.Controllers memory controllers = IFlexiblePortfolio.Controllers(
+            _controllers.depositController,
+            _controllers.withdrawController,
+            _controllers.transferController,
+            _controllers.valuationStrategy,
             feeStrategy
         );
-        createPortfolio(_asset, _duration, _maxSize, strategies, _allowedInstruments, tokenMetadata);
+        createPortfolio(_asset, _duration, _maxSize, controllers, _allowedInstruments, tokenMetadata);
     }
 }

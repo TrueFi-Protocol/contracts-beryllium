@@ -23,7 +23,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
     uint256 internal constant YEAR = 365 days;
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-    bytes32 public constant STRATEGY_ADMIN_ROLE = keccak256("STRATEGY_ADMIN_ROLE");
+    bytes32 public constant CONTROLLER_ADMIN_ROLE = keccak256("CONTROLLER_ADMIN_ROLE");
     uint256 public constant BASIS_PRECISION = 10000;
 
     IERC20Metadata public asset;
@@ -45,9 +45,9 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     IWithdrawController public withdrawController;
     ITransferController public transferController;
 
-    event DepositControllerChanged(IDepositController indexed newStrategy);
-    event WithdrawControllerChanged(IWithdrawController indexed newStrategy);
-    event TransferControllerChanged(ITransferController indexed newStrategy);
+    event DepositControllerChanged(IDepositController indexed newController);
+    event WithdrawControllerChanged(IWithdrawController indexed newController);
+    event TransferControllerChanged(ITransferController indexed newController);
 
     event MaxSizeChanged(uint256 newMaxSize);
     event Borrowed(uint256 amount);
@@ -76,7 +76,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
 
         __Upgradeable_init(_protocolConfig.protocolAdmin(), _protocolConfig.pauserAddress());
         _grantRole(MANAGER_ROLE, _borrower);
-        _grantRole(STRATEGY_ADMIN_ROLE, _borrower);
+        _grantRole(CONTROLLER_ADMIN_ROLE, _borrower);
         protocolConfig = _protocolConfig;
         endDate = block.timestamp + _duration;
         asset = _asset;
@@ -101,7 +101,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         return assets;
     }
 
-    /* @notice This contract is upgradeable and interacts with settable deposit strategies,
+    /* @notice This contract is upgradeable and interacts with settable deposit controllers,
      * that may change over the contract's lifespan. As a safety measure, we recommend approving
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
@@ -449,7 +449,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
     }
 
     // -- Setters --
-    function setWithdrawController(IWithdrawController _withdrawController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+    function setWithdrawController(IWithdrawController _withdrawController) external onlyRole(CONTROLLER_ADMIN_ROLE) {
         require(_withdrawController != withdrawController, "AutomatedLineOfCredit: New withdraw controller needs to be different");
         _setWithdrawController(_withdrawController);
     }
@@ -459,7 +459,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         emit WithdrawControllerChanged(_withdrawController);
     }
 
-    function setDepositController(IDepositController _depositController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+    function setDepositController(IDepositController _depositController) external onlyRole(CONTROLLER_ADMIN_ROLE) {
         require(_depositController != depositController, "AutomatedLineOfCredit: New deposit controller needs to be different");
         _setDepositController(_depositController);
     }
@@ -469,7 +469,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         emit DepositControllerChanged(_depositController);
     }
 
-    function setTransferController(ITransferController _transferController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+    function setTransferController(ITransferController _transferController) external onlyRole(CONTROLLER_ADMIN_ROLE) {
         require(_transferController != transferController, "AutomatedLineOfCredit: New transfer controller needs to be different");
         _setTransferController(_transferController);
     }

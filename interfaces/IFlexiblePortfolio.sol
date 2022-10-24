@@ -17,7 +17,7 @@ interface IFlexiblePortfolio is IPortfolio {
         string symbol;
     }
 
-    struct Strategies {
+    struct Controllers {
         IDepositController depositController;
         IWithdrawController withdrawController;
         ITransferController transferController;
@@ -31,7 +31,7 @@ interface IFlexiblePortfolio is IPortfolio {
         IERC20Metadata _asset,
         address _manager,
         uint256 _maxSize,
-        Strategies calldata _strategies,
+        Controllers calldata _controllers,
         IDebtInstrument[] calldata _allowedInstruments,
         ERC20Metadata calldata tokenMetadata
     ) external;

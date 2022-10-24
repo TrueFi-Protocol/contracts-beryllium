@@ -29,7 +29,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     uint256 internal constant YEAR = 365 days;
     uint256 public constant BASIS_PRECISION = 10000;
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-    bytes32 public constant STRATEGY_ADMIN_ROLE = keccak256("STRATEGY_ADMIN_ROLE");
+    bytes32 public constant CONTROLLER_ADMIN_ROLE = keccak256("CONTROLLER_ADMIN_ROLE");
 
     IERC20Metadata public asset;
     uint8 internal _decimals;
@@ -64,9 +64,9 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     event MaxSizeChanged(uint256 newMaxSize);
     event ManagerFeeBeneficiaryChanged(address indexed managerFeeBeneficiary);
     event ValuationStrategyChanged(IValuationStrategy indexed newStrategy);
-    event DepositControllerChanged(IDepositController indexed newStrategy);
-    event WithdrawControllerChanged(IWithdrawController indexed newStrategy);
-    event TransferControllerChanged(ITransferController indexed newStrategy);
+    event DepositControllerChanged(IDepositController indexed newController);
+    event WithdrawControllerChanged(IWithdrawController indexed newController);
+    event TransferControllerChanged(ITransferController indexed newController);
     event FeeStrategyChanged(IFeeStrategy indexed newStrategy);
 
     event FeePaid(address indexed protocolAddress, uint256 amount);
@@ -77,7 +77,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         IERC20Metadata _asset,
         address _manager,
         uint256 _maxSize,
-        Strategies calldata _strategies,
+        Controllers calldata _controllers,
         IDebtInstrument[] calldata _allowedInstruments,
         ERC20Metadata calldata tokenMetadata
     ) external initializer {
@@ -85,18 +85,18 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         __Upgradeable_init(_protocolConfig.protocolAdmin(), _protocolConfig.pauserAddress());
         __ERC20_init(tokenMetadata.name, tokenMetadata.symbol);
         _grantRole(MANAGER_ROLE, _manager);
-        _grantRole(STRATEGY_ADMIN_ROLE, _manager);
+        _grantRole(CONTROLLER_ADMIN_ROLE, _manager);
         _setManagerFeeBeneficiary(_manager);
         protocolConfig = _protocolConfig;
         endDate = block.timestamp + _duration;
         asset = _asset;
         maxSize = _maxSize;
         _decimals = _asset.decimals();
-        _setDepositController(_strategies.depositController);
-        _setWithdrawController(_strategies.withdrawController);
-        _setTransferController(_strategies.transferController);
-        _setFeeStrategy(_strategies.feeStrategy);
-        valuationStrategy = _strategies.valuationStrategy;
+        _setDepositController(_controllers.depositController);
+        _setWithdrawController(_controllers.withdrawController);
+        _setTransferController(_controllers.transferController);
+        _setFeeStrategy(_controllers.feeStrategy);
+        valuationStrategy = _controllers.valuationStrategy;
 
         for (uint256 i; i < _allowedInstruments.length; i++) {
             isInstrumentAllowed[_allowedInstruments[i]] = true;
@@ -114,7 +114,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return _totalAssets;
     }
 
-    /* @notice This contract is upgradeable and interacts with settable deposit strategies,
+    /* @notice This contract is upgradeable and interacts with settable deposit controllers,
      * that may change over the contract's lifespan. As a safety measure, we recommend approving
      * this contract with the desired deposit amount instead of performing infinite allowance.
      */
@@ -453,7 +453,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
     }
 
     // -- Setters --
-    function setWithdrawController(IWithdrawController _withdrawController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+    function setWithdrawController(IWithdrawController _withdrawController) external onlyRole(CONTROLLER_ADMIN_ROLE) {
         require(_withdrawController != withdrawController, "FP:Value has to be different");
         _setWithdrawController(_withdrawController);
     }
@@ -463,7 +463,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit WithdrawControllerChanged(_withdrawController);
     }
 
-    function setDepositController(IDepositController _depositController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+    function setDepositController(IDepositController _depositController) external onlyRole(CONTROLLER_ADMIN_ROLE) {
         require(_depositController != depositController, "FP:Value has to be different");
         _setDepositController(_depositController);
     }
@@ -473,7 +473,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit DepositControllerChanged(_depositController);
     }
 
-    function setTransferController(ITransferController _transferController) external onlyRole(STRATEGY_ADMIN_ROLE) {
+    function setTransferController(ITransferController _transferController) external onlyRole(CONTROLLER_ADMIN_ROLE) {
         require(_transferController != transferController, "FP:Value has to be different");
         _setTransferController(_transferController);
     }
@@ -483,7 +483,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit TransferControllerChanged(_transferController);
     }
 
-    function setFeeStrategy(IFeeStrategy _feeStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
+    function setFeeStrategy(IFeeStrategy _feeStrategy) external onlyRole(CONTROLLER_ADMIN_ROLE) {
         require(_feeStrategy != feeStrategy, "FP:Value has to be different");
         _setFeeStrategy(_feeStrategy);
     }
@@ -493,7 +493,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         emit FeeStrategyChanged(_feeStrategy);
     }
 
-    function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(STRATEGY_ADMIN_ROLE) {
+    function setValuationStrategy(IValuationStrategy _valuationStrategy) external onlyRole(CONTROLLER_ADMIN_ROLE) {
         require(_valuationStrategy != valuationStrategy, "FP:Value has to be different");
         valuationStrategy = _valuationStrategy;
         emit ValuationStrategyChanged(_valuationStrategy);
