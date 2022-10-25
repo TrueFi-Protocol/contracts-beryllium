@@ -362,7 +362,7 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         }
     }
 
-    function updateAndPayFee() external {
+    function updateAndPayFee() external whenNotPaused {
         uint256 fee = getFee();
         update();
         payFee(fee);

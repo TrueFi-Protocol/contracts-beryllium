@@ -359,7 +359,7 @@ contract FlexiblePortfolio is IFlexiblePortfolio, ERC20Upgradeable, Upgradeable 
         return virtualTokenBalance > dueFees ? virtualTokenBalance - dueFees : 0;
     }
 
-    function payFeeAndUpdate() external {
+    function updateAndPayFee() external whenNotPaused {
         (uint256 protocolFee, uint256 managerFee) = getFees();
         update();
         payAllFees(0, protocolFee, managerFee);
