@@ -6,19 +6,19 @@ import {IPortfolio} from "../interfaces/IPortfolio.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract DepositController is IDepositController {
-    function maxDeposit(address) public view returns (uint256) {
+    function maxDeposit(address) public view virtual returns (uint256) {
         return IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets();
     }
 
-    function maxMint(address sender) external view returns (uint256) {
-        return previewDeposit(maxDeposit(sender));
+    function maxMint(address receiver) public view virtual returns (uint256) {
+        return previewDeposit(maxDeposit(receiver));
     }
 
     function onDeposit(
         address,
         uint256 assets,
         address
-    ) external view returns (uint256, uint256) {
+    ) public view virtual returns (uint256, uint256) {
         return (previewDeposit(assets), 0);
     }
 
@@ -26,7 +26,7 @@ contract DepositController is IDepositController {
         address,
         uint256 shares,
         address
-    ) external view returns (uint256, uint256) {
+    ) public view virtual returns (uint256, uint256) {
         return (previewMint(shares), 0);
     }
 
