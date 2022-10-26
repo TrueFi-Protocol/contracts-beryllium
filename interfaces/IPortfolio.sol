@@ -6,7 +6,7 @@ import {IERC4626} from "./IERC4626.sol";
 import {IDepositController} from "./IDepositController.sol";
 import {IWithdrawController} from "./IWithdrawController.sol";
 import {ITransferController} from "./ITransferController.sol";
-import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 interface IPortfolio is IERC4626, IERC165 {
     function maxSize() external view returns (uint256);
