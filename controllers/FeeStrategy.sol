@@ -2,14 +2,15 @@
 pragma solidity ^0.8.10;
 
 import {IFeeStrategy} from "../interfaces/IFeeStrategy.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-contract FeeStrategy is IFeeStrategy {
+contract FeeStrategy is IFeeStrategy, Initializable {
     address public manager;
     uint256 public managerFeeRate;
 
     event ManagerFeeRateChanged(uint256 newManagerFeeRate);
 
-    constructor(address _manager, uint256 _managerFeeRate) {
+    function initialize(address _manager, uint256 _managerFeeRate) external initializer {
         manager = _manager;
         managerFeeRate = _managerFeeRate;
     }

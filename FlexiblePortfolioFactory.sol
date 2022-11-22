@@ -42,7 +42,8 @@ contract FlexiblePortfolioFactory is PortfolioFactory {
         IDebtInstrument[] calldata _allowedInstruments,
         IFlexiblePortfolio.ERC20Metadata calldata tokenMetadata
     ) external onlyRole(MANAGER_ROLE) {
-        IFeeStrategy feeStrategy = new FeeStrategy(msg.sender, managerFeeRate);
+        FeeStrategy feeStrategy = new FeeStrategy();
+        feeStrategy.initialize(msg.sender, managerFeeRate);
         emit FeeStrategyCreated(address(feeStrategy), managerFeeRate);
 
         IFlexiblePortfolio.Controllers memory controllers = IFlexiblePortfolio.Controllers(
