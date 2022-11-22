@@ -3,9 +3,12 @@ pragma solidity ^0.8.10;
 
 import {IDepositController} from "../interfaces/IDepositController.sol";
 import {IPortfolio} from "../interfaces/IPortfolio.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract DepositController is IDepositController {
+contract DepositController is IDepositController, Initializable {
+    function initialize() external initializer {}
+
     function maxDeposit(address) public view virtual returns (uint256) {
         return IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets();
     }
