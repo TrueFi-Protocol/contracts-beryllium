@@ -4,8 +4,11 @@ pragma solidity ^0.8.10;
 import {IPortfolio} from "../interfaces/IPortfolio.sol";
 import {IWithdrawController} from "../interfaces/IWithdrawController.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-contract WithdrawController is IWithdrawController {
+contract WithdrawController is IWithdrawController, Initializable {
+    function initialize() external initializer {}
+
     function maxWithdraw(address owner) external view returns (uint256) {
         IPortfolio portfolio = IPortfolio(msg.sender);
         return Math.min(previewRedeem(portfolio.balanceOf(owner)), portfolio.liquidAssets());

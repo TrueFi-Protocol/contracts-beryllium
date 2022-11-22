@@ -3,9 +3,12 @@ pragma solidity ^0.8.10;
 
 import {ITransferController} from "../interfaces/ITransferController.sol";
 import {IAccessControl} from "../interfaces/IAccessControl.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-contract WhitelistTransferController is ITransferController {
+contract WhitelistTransferController is ITransferController, Initializable {
     mapping(address => mapping(address => bool)) public isWhitelisted;
+
+    function initialize() external initializer {}
 
     function canTransfer(
         address sender,

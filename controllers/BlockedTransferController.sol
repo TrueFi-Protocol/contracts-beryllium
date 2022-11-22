@@ -2,8 +2,11 @@
 pragma solidity ^0.8.10;
 
 import {ITransferController} from "../interfaces/ITransferController.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-contract BlockedTransferController is ITransferController {
+contract BlockedTransferController is ITransferController, Initializable {
+    function initialize() external initializer {}
+
     function canTransfer(
         address,
         address,
