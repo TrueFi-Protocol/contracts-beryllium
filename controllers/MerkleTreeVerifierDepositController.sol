@@ -41,4 +41,28 @@ contract MerkleTreeVerifierDepositController is DepositController {
         portfolio.asset().approve(address(portfolio), amount);
         portfolio.deposit(amount, msg.sender);
     }
+
+    function onMint(
+        address sender,
+        uint256 shares,
+        address receiver
+    ) public view virtual override returns (uint256, uint256) {
+        require(sender == address(this), "MerkleTreeVerifierDepositController: Trying to bypass controller");
+        return super.onMint(sender, shares, receiver);
+    }
+
+    function mint(
+        IFlexiblePortfolio portfolio,
+        uint256 shares,
+        bytes32[] calldata merkleProof
+    ) public {
+        require(
+            verifier.verify(allowListIndex, keccak256(abi.encodePacked(msg.sender)), merkleProof),
+            "MerkleTreeVerifierDepositController: Invalid proof"
+        );
+        uint256 assets = portfolio.previewMint(shares);
+        portfolio.asset().safeTransferFrom(msg.sender, address(this), assets);
+        portfolio.asset().approve(address(portfolio), assets);
+        portfolio.deposit(assets, msg.sender);
+    }
 }
