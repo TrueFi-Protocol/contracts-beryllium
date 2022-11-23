@@ -9,6 +9,8 @@ import {ITransferController} from "./ITransferController.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 interface IPortfolio is IERC4626, IERC165 {
+    function endDate() external view returns (uint256);
+
     function maxSize() external view returns (uint256);
 
     function liquidAssets() external view returns (uint256);
