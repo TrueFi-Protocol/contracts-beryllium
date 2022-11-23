@@ -7,7 +7,7 @@ import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.s
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract DepositController is IDepositController, Initializable {
-    function initialize() external initializer {}
+    function initialize() external virtual initializer {}
 
     function maxDeposit(address) public view virtual returns (uint256) {
         return IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets();

@@ -11,10 +11,14 @@ import {DepositController} from "./DepositController.sol";
 contract MerkleTreeVerifierDepositController is DepositController {
     using SafeERC20 for IERC20Metadata;
 
-    IMerkleTreeVerifier public immutable verifier;
-    uint256 public immutable allowListIndex;
+    IMerkleTreeVerifier public verifier;
+    uint256 public allowListIndex;
 
-    constructor(IMerkleTreeVerifier _verifier, uint256 _allowListIndex) {
+    function initialize() external override initializer {
+        revert("MerkleTreeVerifierDepositController: Wrong initializer");
+    }
+
+    function initialize(IMerkleTreeVerifier _verifier, uint256 _allowListIndex) external initializer {
         verifier = _verifier;
         allowListIndex = _allowListIndex;
     }
