@@ -2,11 +2,12 @@
 pragma solidity ^0.8.10;
 
 import {ITransferController} from "../interfaces/ITransferController.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-contract MultiFarmAllowedTransferController is ITransferController {
-    address public immutable multiFarm;
+contract MultiFarmAllowedTransferController is ITransferController, Initializable {
+    address public multiFarm;
 
-    constructor(address _multiFarm) {
+    function initialize(address _multiFarm) external initializer {
         multiFarm = _multiFarm;
     }
 
