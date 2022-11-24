@@ -46,18 +46,37 @@ contract FlexiblePortfolioFactory is PortfolioFactory {
         IFlexiblePortfolio.ERC20Metadata calldata tokenMetadata
     ) public onlyRole(MANAGER_ROLE) {
         IFlexiblePortfolio.Controllers memory controllers = setupControllers(controllersData);
-        bytes memory initCalldata = abi.encodeWithSelector(
-            IFlexiblePortfolio.initialize.selector,
-            protocolConfig,
-            _duration,
+        bytes memory initCalldata = setupPortfolioInitData(
             _asset,
-            msg.sender,
+            _duration,
             _maxSize,
             controllers,
             _allowedInstruments,
             tokenMetadata
         );
         _deployPortfolio(initCalldata);
+    }
+
+    function setupPortfolioInitData(
+        IERC20Metadata _asset,
+        uint256 _duration,
+        uint256 _maxSize,
+        IFlexiblePortfolio.Controllers memory controllers,
+        IDebtInstrument[] calldata _allowedInstruments,
+        IFlexiblePortfolio.ERC20Metadata calldata tokenMetadata
+    ) internal view virtual returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                IFlexiblePortfolio.initialize.selector,
+                protocolConfig,
+                _duration,
+                _asset,
+                msg.sender,
+                _maxSize,
+                controllers,
+                _allowedInstruments,
+                tokenMetadata
+            );
     }
 
     function setupControllers(ControllersData memory controllersData) internal returns (IFlexiblePortfolio.Controllers memory) {
