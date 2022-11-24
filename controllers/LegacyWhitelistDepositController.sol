@@ -4,7 +4,7 @@ pragma solidity ^0.8.10;
 import {DepositController} from "./DepositController.sol";
 import {IAccessControl} from "../interfaces/IAccessControl.sol";
 
-contract WhitelistDepositController is DepositController {
+contract LegacyWhitelistDepositController is DepositController {
     // mapping(portfolio => mapping(user => isWhitelisted))
     mapping(address => mapping(address => bool)) public isWhitelisted;
 
