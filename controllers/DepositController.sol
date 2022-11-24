@@ -22,27 +22,39 @@ contract DepositController is IDepositController, Initializable {
         _setLenderVerifier(_lenderVerifier);
     }
 
-    function maxDeposit(address) public view virtual returns (uint256) {
+    function maxDeposit(address receiver) public view virtual returns (uint256) {
+        if (!lenderVerifier.isAllowed(receiver)) {
+            return 0;
+        }
         return IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets();
     }
 
     function maxMint(address receiver) public view virtual returns (uint256) {
+        if (!lenderVerifier.isAllowed(receiver)) {
+            return 0;
+        }
         return previewDeposit(maxDeposit(receiver));
     }
 
     function onDeposit(
         address,
         uint256 assets,
-        address
+        address receiver
     ) public view virtual returns (uint256, uint256) {
+        if (!lenderVerifier.isAllowed(receiver)) {
+            return (0, 0);
+        }
         return (previewDeposit(assets), 0);
     }
 
     function onMint(
         address,
         uint256 shares,
-        address
+        address receiver
     ) public view virtual returns (uint256, uint256) {
+        if (!lenderVerifier.isAllowed(receiver)) {
+            return (0, 0);
+        }
         return (previewMint(shares), 0);
     }
 
