@@ -2,12 +2,25 @@
 pragma solidity ^0.8.10;
 
 import {IDepositController} from "../interfaces/IDepositController.sol";
+import {ILenderVerifier} from "../interfaces/ILenderVerifier.sol";
 import {IPortfolio} from "../interfaces/IPortfolio.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract DepositController is IDepositController, Initializable {
-    function initialize() external virtual initializer {}
+    event LenderVerifierChanged(ILenderVerifier indexed newLenderVerifier);
+
+    ILenderVerifier public lenderVerifier;
+    address public manager;
+
+    function initialize(address _manager, ILenderVerifier _lenderVerifier) external virtual initializer {
+        __DepositController_init(_manager, _lenderVerifier);
+    }
+
+    function __DepositController_init(address _manager, ILenderVerifier _lenderVerifier) internal {
+        manager = _manager;
+        _setLenderVerifier(_lenderVerifier);
+    }
 
     function maxDeposit(address) public view virtual returns (uint256) {
         return IPortfolio(msg.sender).maxSize() - IPortfolio(msg.sender).totalAssets();
@@ -45,5 +58,15 @@ contract DepositController is IDepositController, Initializable {
         } else {
             return Math.ceilDiv((shares * totalAssets), totalSupply);
         }
+    }
+
+    function setLenderVerifier(ILenderVerifier _lenderVerifier) public {
+        require(msg.sender == manager, "DepositController: sender is not manager");
+        _setLenderVerifier(_lenderVerifier);
+    }
+
+    function _setLenderVerifier(ILenderVerifier _lenderVerifier) internal {
+        lenderVerifier = _lenderVerifier;
+        emit LenderVerifierChanged(_lenderVerifier);
     }
 }

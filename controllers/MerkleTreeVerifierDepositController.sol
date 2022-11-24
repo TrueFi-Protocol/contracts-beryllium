@@ -2,7 +2,7 @@
 pragma solidity ^0.8.10;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
+import {ILenderVerifier} from "../interfaces/ILenderVerifier.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IMerkleTreeVerifier} from "../lithium/interfaces/IMerkleTreeVerifier.sol";
 import {IFlexiblePortfolio} from "../interfaces/IFlexiblePortfolio.sol";
@@ -14,13 +14,19 @@ contract MerkleTreeVerifierDepositController is DepositController {
     IMerkleTreeVerifier public verifier;
     uint256 public allowListIndex;
 
-    function initialize() external override initializer {
-        revert("MerkleTreeVerifierDepositController: Wrong initializer");
-    }
-
-    function initialize(IMerkleTreeVerifier _verifier, uint256 _allowListIndex) external initializer {
+    function initialize(
+        address _manager,
+        ILenderVerifier _lenderVerifier,
+        IMerkleTreeVerifier _verifier,
+        uint256 _allowListIndex
+    ) external initializer {
         verifier = _verifier;
         allowListIndex = _allowListIndex;
+        __DepositController_init(_manager, _lenderVerifier);
+    }
+
+    function initialize(address, ILenderVerifier) external override initializer {
+        revert("MerkleTreeVerifierDepositController: Wrong initializer");
     }
 
     function onDeposit(
