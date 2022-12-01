@@ -6,19 +6,12 @@ import {ILenderVerifier} from "../interfaces/ILenderVerifier.sol";
 import {IPortfolio} from "../interfaces/IPortfolio.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 
-contract DepositController is IDepositController, Initializable, AccessControlEnumerable {
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-
-    event LenderVerifierChanged(ILenderVerifier indexed newLenderVerifier);
-
+contract DepositController is IDepositController, Initializable {
     ILenderVerifier public lenderVerifier;
 
-    function initialize(address _manager, ILenderVerifier _lenderVerifier) external virtual initializer {
-        _setRoleAdmin(MANAGER_ROLE, MANAGER_ROLE);
-        _grantRole(MANAGER_ROLE, _manager);
-        _setLenderVerifier(_lenderVerifier);
+    function initialize(ILenderVerifier _lenderVerifier) external virtual initializer {
+        lenderVerifier = _lenderVerifier;
     }
 
     function maxDeposit(address receiver) public view virtual returns (uint256) {
@@ -69,14 +62,5 @@ contract DepositController is IDepositController, Initializable, AccessControlEn
         } else {
             return Math.ceilDiv((shares * totalAssets), totalSupply);
         }
-    }
-
-    function setLenderVerifier(ILenderVerifier _lenderVerifier) external onlyRole(MANAGER_ROLE) {
-        _setLenderVerifier(_lenderVerifier);
-    }
-
-    function _setLenderVerifier(ILenderVerifier _lenderVerifier) internal {
-        lenderVerifier = _lenderVerifier;
-        emit LenderVerifierChanged(_lenderVerifier);
     }
 }
