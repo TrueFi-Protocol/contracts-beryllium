@@ -18,7 +18,7 @@ contract DepositController is IDepositController, Initializable, AccessControlEn
     function initialize(address _manager, ILenderVerifier _lenderVerifier) external virtual initializer {
         _setRoleAdmin(MANAGER_ROLE, MANAGER_ROLE);
         _grantRole(MANAGER_ROLE, _manager);
-        lenderVerifier = _lenderVerifier;
+        _setLenderVerifier(_lenderVerifier);
     }
 
     function maxDeposit(address receiver) public view virtual returns (uint256) {
@@ -71,7 +71,11 @@ contract DepositController is IDepositController, Initializable, AccessControlEn
         }
     }
 
-    function setLenderVerifier(ILenderVerifier _lenderVerifier) public onlyRole(MANAGER_ROLE) {
+    function setLenderVerifier(ILenderVerifier _lenderVerifier) external onlyRole(MANAGER_ROLE) {
+        _setLenderVerifier(_lenderVerifier);
+    }
+
+    function _setLenderVerifier(ILenderVerifier _lenderVerifier) internal {
         lenderVerifier = _lenderVerifier;
         emit LenderVerifierChanged(_lenderVerifier);
     }
