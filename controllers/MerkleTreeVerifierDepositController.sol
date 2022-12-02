@@ -12,20 +12,12 @@ import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.s
 contract MerkleTreeVerifierDepositController is IDepositController, Initializable {
     using SafeERC20 for IERC20Metadata;
 
-    event LenderVerifierChanged(IMerkleTreeVerifier indexed newLenderVerifier);
-
-    address public manager;
     IMerkleTreeVerifier public lenderVerifier;
     uint256 public allowListIndex;
 
-    function initialize(
-        address _manager,
-        IMerkleTreeVerifier _lenderVerifier,
-        uint256 _allowListIndex
-    ) external initializer {
+    function initialize(IMerkleTreeVerifier _lenderVerifier, uint256 _allowListIndex) external initializer {
         lenderVerifier = _lenderVerifier;
         allowListIndex = _allowListIndex;
-        manager = _manager;
     }
 
     function maxDeposit(address) public view virtual returns (uint256) {
@@ -95,15 +87,5 @@ contract MerkleTreeVerifierDepositController is IDepositController, Initializabl
         portfolio.asset().safeTransferFrom(msg.sender, address(this), assets);
         portfolio.asset().approve(address(portfolio), assets);
         portfolio.deposit(assets, msg.sender);
-    }
-
-    function setLenderVerifier(IMerkleTreeVerifier _lenderVerifier) public {
-        require(msg.sender == manager, "MerkleTreeVerifierDepositController: sender is not manager");
-        _setLenderVerifier(_lenderVerifier);
-    }
-
-    function _setLenderVerifier(IMerkleTreeVerifier _lenderVerifier) internal {
-        lenderVerifier = _lenderVerifier;
-        emit LenderVerifierChanged(_lenderVerifier);
     }
 }
