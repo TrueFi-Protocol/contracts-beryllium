@@ -60,12 +60,10 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         IERC20Metadata _asset,
         address _borrower,
         uint256 _maxSize,
-        InterestRateParameters memory _interestRateParameters,
-        IDepositController _depositController,
-        IWithdrawController _withdrawController,
-        ITransferController _transferController,
-        string memory name,
-        string memory symbol
+        InterestRateParameters calldata _interestRateParameters,
+        Controllers calldata controllers,
+        string calldata name,
+        string calldata symbol
     ) public initializer {
         require(
             _interestRateParameters.minInterestRateUtilizationThreshold <= _interestRateParameters.optimumUtilization &&
@@ -85,9 +83,9 @@ contract AutomatedLineOfCredit is IAutomatedLineOfCredit, ERC20Upgradeable, Upgr
         borrower = _borrower;
         interestRateParameters = _interestRateParameters;
         maxSize = _maxSize;
-        _setDepositController(_depositController);
-        _setWithdrawController(_withdrawController);
-        _setTransferController(_transferController);
+        _setDepositController(controllers.depositController);
+        _setWithdrawController(controllers.withdrawController);
+        _setTransferController(controllers.transferController);
     }
 
     // -- ERC20 metadata --

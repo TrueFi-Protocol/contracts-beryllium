@@ -24,6 +24,12 @@ interface IAutomatedLineOfCredit is IPortfolio {
         uint32 maxInterestRateUtilizationThreshold;
     }
 
+    struct Controllers {
+        IDepositController depositController;
+        IWithdrawController withdrawController;
+        ITransferController transferController;
+    }
+
     function initialize(
         IProtocolConfig _protocolConfig,
         uint256 _duration,
@@ -31,9 +37,7 @@ interface IAutomatedLineOfCredit is IPortfolio {
         address _borrower,
         uint256 _maxSize,
         InterestRateParameters memory _interestRateParameters,
-        IDepositController _depositController,
-        IWithdrawController _withdrawController,
-        ITransferController _transferController,
+        Controllers memory controllers,
         string memory name,
         string memory symbol
     ) external;
