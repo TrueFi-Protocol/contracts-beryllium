@@ -44,7 +44,7 @@ contract FlexiblePortfolioFactory is PortfolioFactory {
         ControllersData memory controllersData,
         IDebtInstrument[] calldata _allowedInstruments,
         IFlexiblePortfolio.ERC20Metadata calldata tokenMetadata
-    ) public onlyRole(MANAGER_ROLE) {
+    ) public virtual onlyRole(MANAGER_ROLE) {
         IFlexiblePortfolio.Controllers memory controllers = setupControllers(controllersData);
         bytes memory initCalldata = setupPortfolioInitData(
             _asset,
