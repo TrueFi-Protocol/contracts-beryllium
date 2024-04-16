@@ -36,7 +36,19 @@ contract AutomatedLineOfCreditFactory is PortfolioFactory {
         ControllersData calldata controllersData,
         string calldata name,
         string calldata symbol
-    ) external onlyRole(MANAGER_ROLE) {
+    ) external virtual onlyRole(MANAGER_ROLE) {
+        _createPortfolio(_duration, _asset, _maxSize, _interestRateParameters, controllersData, name, symbol);
+    }
+
+    function _createPortfolio(
+        uint256 _duration,
+        IERC20Metadata _asset,
+        uint256 _maxSize,
+        IAutomatedLineOfCredit.InterestRateParameters calldata _interestRateParameters,
+        ControllersData calldata controllersData,
+        string calldata name,
+        string calldata symbol
+    ) internal {
         IAutomatedLineOfCredit.Controllers memory controllers = setupControllers(controllersData);
         bytes memory initCalldata = abi.encodeWithSelector(
             IAutomatedLineOfCredit.initialize.selector,
